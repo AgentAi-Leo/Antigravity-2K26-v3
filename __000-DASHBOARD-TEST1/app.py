@@ -1358,7 +1358,7 @@ if should_run:
                         f.write(uf.getbuffer())
                     file_paths.append(file_path)
                     
-                    processed.add(uf.name + str(uf.size))
+                    processed.add(uf.name + str(uf.size)) # type: ignore
                     set_skill_state("processed_files", processed)
                     
                     # Replace {FILE_X} placeholder in the args for THIS SPECIFIC file (for single-run fallback)
@@ -1549,14 +1549,14 @@ if should_run:
 def show_result_popup(text: str):
     load_css() # Ensure styles are applied
     
-    processed_files = get_skill_state("last_processed_files", [])
-    idx = get_skill_state("file_index", 0)
+    processed_files: list = get_skill_state("last_processed_files", []) # type: ignore
+    idx: int = int(get_skill_state("file_index", 0)) # type: ignore
     is_media = False
     is_image = False
     
     # 1. Immediate Media Detection (Before any UI guards)
     if processed_files:
-        current_file = processed_files[min(idx, len(processed_files)-1)]
+        current_file: dict = processed_files[min(idx, len(processed_files)-1)] # type: ignore
         import mimetypes
         mime_type, _ = mimetypes.guess_type(current_file["name"])
         is_media = mime_type and (mime_type.startswith("audio/") or mime_type.startswith("video/"))
@@ -1588,7 +1588,7 @@ def show_result_popup(text: str):
                 display_text = ft_clean or txt_clean
             
     if processed_files:
-        current_file = processed_files[idx]
+        current_file: dict = processed_files[idx] # type: ignore
         import mimetypes
         mime_type, _ = mimetypes.guess_type(current_file["name"])
         
@@ -1622,8 +1622,8 @@ def show_result_popup(text: str):
         st.markdown("---")
         
         if is_media:
-            st.markdown(f"**Playing {idx + 1} of {len(processed_files)}**: `{current_file['name']}`")
-            st.audio(current_file["bytes"], format=mime_type, autoplay=True, loop=True)
+            st.markdown(f"**Playing {idx + 1} of {len(processed_files)}**: `{current_file['name']}`") # type: ignore
+            st.audio(current_file["bytes"], format=mime_type, autoplay=True, loop=True) # type: ignore
             # stats_badge_text extracted below — pass it here so it appears inline with speed controls
             _stats_for_speed = ""
             import re as _re_pre
@@ -1633,13 +1633,13 @@ def show_result_popup(text: str):
             render_speed_controls(skill_id=selected_skill_id, stats_text=_stats_for_speed)
 
         elif is_image:
-            st.markdown(f"**Viewing Image {idx + 1} of {len(processed_files)}**: `{current_file['name']}`")
-            st.image(current_file["bytes"], use_container_width=True)
+            st.markdown(f"**Viewing Image {idx + 1} of {len(processed_files)}**: `{current_file['name']}`") # type: ignore
+            st.image(current_file["bytes"], use_container_width=True) # type: ignore
         else:
-            display_name = current_file.get('original_name')
+            display_name = current_file.get('original_name') # type: ignore
             if not display_name:
                 # Fallback: strip .pdf from output name for document converters
-                name = current_file['name']
+                name = current_file['name'] # type: ignore
                 if name.lower().endswith('.pdf'):
                     display_name = os.path.splitext(name)[0]
                 else:
@@ -1960,7 +1960,7 @@ def show_result_popup(text: str):
             
             # Specialized player for audio results (like TTS)
             if dl_mime and dl_mime.startswith("audio/"):
-                st.audio(res_bytes, format=dl_mime, autoplay=True)
+                st.audio(res_bytes, format=dl_mime, autoplay=True) # type: ignore
                 render_speed_controls(skill_id=selected_skill_id)
                 st.markdown("<br>", unsafe_allow_html=True)
                 
@@ -1974,10 +1974,10 @@ def show_result_popup(text: str):
                     use_container_width=True,
                     type="primary",
                     key=f"direct_download_btn_sync_{idx}" # Key must be index-specific to prevent state reuse
-                )
+                ) # type: ignore
             
             # --- TOP BATCH ACTIONS (For PDF Converter) ---
-            if selected_skill["basename"] == "Convtr-PlainTxt2PDF" and len(processed_files) > 1:
+            if selected_skill["basename"] == "Convtr-PlainTxt2PDF" and len(processed_files) > 1: # type: ignore
                 st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
                 
                 # ZIP Options (Include Sources on top)
@@ -2007,9 +2007,9 @@ def show_result_popup(text: str):
                 merged_bytes_clean = generate_pdf_from_text("\n".join(merged_parts_clean))
                 merged_bytes_sourced = generate_pdf_from_text("\n".join(merged_parts_sourced))
                 if merged_bytes_sourced:
-                    st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="primary", key="popup_merge_pdf_sourced_top")
+                    st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="primary", key="popup_merge_pdf_sourced_top") # type: ignore
                 if merged_bytes_clean:
-                    st.download_button(label=f"📑 MERGE ALL (CLEAN)", data=merged_bytes_clean, file_name="Merged_Document_Clean.pdf", mime="application/pdf", use_container_width=True, type="primary", key="popup_merge_pdf_clean_top")
+                    st.download_button(label=f"📑 MERGE ALL (CLEAN)", data=merged_bytes_clean, file_name="Merged_Document_Clean.pdf", mime="application/pdf", use_container_width=True, type="primary", key="popup_merge_pdf_clean_top") # type: ignore
 
 
     # --- Bottom Clear Buttons ---

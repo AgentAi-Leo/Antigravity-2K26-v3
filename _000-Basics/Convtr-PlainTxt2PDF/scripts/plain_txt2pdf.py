@@ -17,7 +17,7 @@ for _candidate in [
         sys.path.insert(0, os.path.abspath(_candidate))
 
 try:
-    from fpdf import FPDF
+    from fpdf import FPDF # type: ignore
 except ImportError:
     print("Error: fpdf2 not found.\nRun: python3 -m pip install fpdf2 --target _libs/")
     sys.exit(1)
@@ -117,7 +117,7 @@ def _read_rtf(path: str) -> str:
 
     # Try striprtf (fallback)
     try:
-        from striprtf.striprtf import rtf_to_text
+        from striprtf.striprtf import rtf_to_text # type: ignore
         return rtf_to_text(raw)
     except ImportError:
         pass
