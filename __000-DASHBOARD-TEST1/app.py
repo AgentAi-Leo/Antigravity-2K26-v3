@@ -189,7 +189,7 @@ def trigger_complete_overlay(placeholder):
 # -----------------------------------------------------------------------------
 # Helper: Process Audio/Video Transcription
 # -----------------------------------------------------------------------------
-def process_audio_files(file_paths, selected_skill, run_env, proc_overlay=None, main_spinner=None):
+def process_uploaded_files(file_paths, selected_skill, run_env, proc_overlay=None, main_spinner=None):
     """Executes transcription for a list of files and returns the processed data."""
     results = []
     progress_text = st.empty()
@@ -316,6 +316,7 @@ def process_tts_files(file_paths, selected_skill, run_env, proc_overlay=None, ma
 
                     results.append({
                         "name": os.path.basename(full_saved_path),
+                        "original_name": original_name,
                         "bytes": audio_bytes,
                         "transcript": content_preview,
                         "content_preview": content_preview
@@ -369,10 +370,15 @@ load_css() # Global CSS load to ensure banners work on main page
 # -----------------------------------------------------------------------------
 # Helper: Generate PDF via Convtr-PlainTxt2PDF Skill
 # -----------------------------------------------------------------------------
+@st.cache_data(show_spinner=False, max_entries=50)
 def generate_pdf_from_text(text: str) -> bytes:
     """Uses the PlainTxt2PDF skill to convert text to PDF bytes."""
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    skill_script = os.path.join(root_dir, "_100-TBD", "Convtr-PlainTxt2PDF", "scripts", "plain_txt2pdf.py")
+    skill_script = os.path.join(root_dir, "_000-Basics", "Convtr-PlainTxt2PDF", "scripts", "plain_txt2pdf.py")
+    
+    # Fallback to _100-TBD if not found in _000-Basics
+    if not os.path.exists(skill_script):
+        skill_script = os.path.join(root_dir, "_100-TBD", "Convtr-PlainTxt2PDF", "scripts", "plain_txt2pdf.py")
     
     if not os.path.exists(skill_script):
         return b""
@@ -402,6 +408,7 @@ def generate_pdf_from_text(text: str) -> bytes:
             st.error(f"PDF GENERATION FAILED!\n\nSTDOUT:\n{res.stdout}\n\nSTDERR:\n{res.stderr}")
     return b""
 
+@st.cache_data(show_spinner=False, max_entries=50)
 def generate_docx_from_text(text: str) -> bytes:
     """Generates a DOCX file from text returning bytes."""
     import io
@@ -430,6 +437,7 @@ def generate_docx_from_text(text: str) -> bytes:
     doc.save(f)
     return f.getvalue()
 
+@st.cache_data(show_spinner=False, max_entries=50)
 def generate_doc_rtf_from_text(text: str) -> bytes:
     """Generates a basic RTF string for .doc compatibility."""
     # Split to find the source file line
@@ -454,6 +462,10 @@ def generate_doc_rtf_from_text(text: str) -> bytes:
 def read_text_file_preview(path: str) -> str:
     """Reads a text, md, or rtf file for preview purposes."""
     ext = os.path.splitext(path)[1].lower()
+    
+    # Skip PDF files as they are binary and not human-readable in raw text format
+    if ext == ".pdf":
+        return ""
     
     # Pre-flight check for RTF files hiding under .txt extension (common with Mac TextEdit)
     is_actually_rtf = ext == ".rtf"
@@ -580,23 +592,43 @@ def read_text_file_preview(path: str) -> str:
     except Exception as e:
         return f"(Could not generate preview: {e})"
    # Helper: Generate a ZIP file of all transcripts dynamically
-def generate_zip_of_all_transcripts(audio_files_list, format_option):
+@st.cache_data(show_spinner=False, max_entries=50)
+def generate_zip_of_all_transcripts(processed_files_list, format_option, include_sources=False):
     import io
     import zipfile
     import os
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-        for i, f in enumerate(audio_files_list):
+        for i, f in enumerate(processed_files_list):
             fname = os.path.splitext(f["name"])[0]
             
             if format_option.startswith("MP3") or format_option == "MP3 Audio (.mp3)":
                 zip_file.writestr(f"{fname}.mp3", f["bytes"])
                 continue
 
+            # --- Smart ZIP Pass-through ---
+            # If we don't need sources and the file is already the requested format, use its raw bytes directly.
+            # This preserves 100% quality and prevents blank pages from empty previews.
+            current_ext = os.path.splitext(f["name"])[1].lower()
+            is_matching_pdf = format_option.startswith("PDF") and current_ext == ".pdf"
+            is_matching_docx = format_option.startswith("DOCX") and current_ext == ".docx"
+            
+            if not include_sources and (is_matching_pdf or is_matching_docx):
+                zip_file.writestr(f["name"], f["bytes"])
+                continue
+
             # Otherwise, it's a document format
-            download_text = f["transcript"]
-            # Inject metadata logic inside ZIP files too
-            download_text += f"\n\n---\nSource File: {f['name']}"
+            download_text = f.get("content_preview") or ""
+            if not download_text.strip():
+                transcript = f.get("transcript", "")
+                # Filter out success messages if falling back to transcript
+                if not any(x in transcript for x in ["Successfully", "Generated:", "✅"]):
+                    download_text = transcript
+            
+            # Prepend Source Header if requested (matching Merge Source style)
+            if include_sources:
+                header = f"--- Document: {f['name']} ---\n\n"
+                download_text = header + download_text
             
             if format_option == "TXT (.txt)" or "TXT" in format_option:
                 zip_file.writestr(f"{fname}.txt", download_text)
@@ -681,6 +713,28 @@ def check_password():
     with st.form("login_form", clear_on_submit=False, border=False):
         st.markdown('<div class="password-container">', unsafe_allow_html=True)
         password = st.text_input("Password", type="password", placeholder="Enter Password", label_visibility="collapsed")
+        
+        # Keybind TAB to focus the password input field
+        st.components.v1.html(
+            """
+            <script>
+            const doc = window.parent.document;
+            if (!doc._tabKeyBound) {
+                doc._tabKeyBound = true;
+                doc.addEventListener('keydown', function(e) {
+                    if (e.key === 'Tab' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                        const pwInput = doc.querySelector('input[type="password"]');
+                        if (pwInput) {
+                            pwInput.focus();
+                            e.preventDefault();
+                        }
+                    }
+                });
+            }
+            </script>
+            """,
+            height=0
+        )
         
         # Container for reliable yellow styling
         st.markdown("<div class='unlock-btn-container'>", unsafe_allow_html=True)
@@ -1004,15 +1058,15 @@ if is_audio_skill:
 elif is_tts_skill:
     st.subheader("Upload Text Files for Narration")
     uploader_label = "Upload Text Files"
-    st.caption("ElevenLabs cleanly auto-extracts text from Plain Text, Markdown, PDF, RTF, DOC, and DOCX files for narration.")
+    st.caption("ElevenLabs cleanly auto-extracts text from Plain Text, Markdown, RTF, DOC, and DOCX files for narration.")
     accepted_types = [
-        "txt", "md", "pdf", "rtf", "doc", "docx", "csv", "json", "py", "sh", "yaml", "yml", "ini"
+        "txt", "md", "rtf", "doc", "docx", "csv", "json", "py", "sh", "yaml", "yml", "ini"
     ]
 else:
     st.subheader("Upload Document Files")
     uploader_label = "Upload Document Files"
     accepted_types = [
-        "txt", "md", "pdf", "docx", "doc", "csv", "json", "rtf", "py", "sh", "yaml", "yml"
+        "txt", "md", "docx", "doc", "csv", "json", "rtf", "py", "sh", "yaml", "yml"
     ]
 
 # --- Duplicate Checking Logic ---
@@ -1061,6 +1115,44 @@ uploaded_files = st.file_uploader(
     label_visibility="collapsed",
     type=accepted_types
 )
+
+# --- PDF Restriction Safeguard ---
+if uploaded_files:
+    pdf_files = [f for f in uploaded_files if f.name.lower().endswith(".pdf")]
+    if pdf_files:
+        st.warning("⚠️ **PDF files are not allowed for upload.** These files have been removed from your selection.")
+        uploaded_files = [f for f in uploaded_files if not f.name.lower().endswith(".pdf")]
+
+# Keybind ENTER to the Browse files button
+st.components.v1.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    if (!doc._enterKeyBound) {
+        doc._enterKeyBound = true;
+        doc.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                // Don't trigger Browse if a result is being displayed or a button has focus
+                const resultHeader = Array.from(doc.querySelectorAll('h2')).find(h => h.innerText.includes('PROCESSED RESULT'));
+                if (resultHeader || doc.querySelector('button.kb-focus')) return;
+                // Try multiple selectors to find the Browse button
+                const browseBtn = doc.querySelector('[data-testid="stFileUploaderDropzone"] button')
+                    || doc.querySelector('[data-testid="baseButton-secondary"]')
+                    || doc.querySelector('section[data-testid="stFileUploader"] button');
+                if (browseBtn) {
+                    browseBtn.click();
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+    </script>
+    """,
+    height=0
+)
+if uploaded_files and not is_audio_skill and not is_tts_skill:
+    # Server-side filter: remove any .pdf files that slipped through (e.g. from prior session)
+    uploaded_files = [f for f in uploaded_files if not f.name.lower().endswith('.pdf')]
 
 if uploaded_files:
     # Disable duplicate file tracking when navigating clips inside dialogs
@@ -1257,6 +1349,9 @@ if should_run:
                     else:
                          args_input += " --input {FILE_1}"
                 
+                # Preserve the base args so we don't lose the {FILE_1} placeholder when looping
+                base_args_input = str(args_input)
+                
                 for i, uf in enumerate(files_to_process_objs):
                     file_path = os.path.join(temp_dir, uf.name)
                     with open(file_path, "wb") as f:
@@ -1266,8 +1361,11 @@ if should_run:
                     processed.add(uf.name + str(uf.size))
                     set_skill_state("processed_files", processed)
                     
-                    # Replace {FILE_X} placeholder in the args
-                    args_input = args_input.replace(f"{{FILE_{i+1}}}", file_path)
+                    # Replace {FILE_X} placeholder in the args for THIS SPECIFIC file (for single-run fallback)
+                    # We only do this for the *first* file because single execution assumes args_input is fully resolved.
+                    # The batch loop relies on base_args_input later.
+                    if i == 0:
+                        args_input = base_args_input.replace("{FILE_1}", file_path)
     
     # Parse the arguments string into a list safely avoiding simple split() issues with quotes
     import shlex
@@ -1285,6 +1383,12 @@ if should_run:
     
     # Use manual status instead of with st.spinner so we can clear it before st.stop()
     output_expander = st.expander("📄 Output", expanded=False)
+    
+    # Reset the playlist/gallery at the start of a fresh processing batch
+    # This addresses the "Viewing 1 of 4" issue and prevents result leakage.
+    set_skill_state("last_processed_files", [])
+    set_skill_state("file_index", 0)
+    
     proc_overlay = trigger_processing_overlay()
     with output_expander:
         main_spinner = st.empty()
@@ -1302,139 +1406,135 @@ if should_run:
                 run_env["KIE_API_KEY"] = st.session_state["KIE_API_KEY"]
             
             if is_audio_skill:
-                new_files = process_audio_files(file_paths, selected_skill, run_env, proc_overlay=proc_overlay, main_spinner=main_spinner)
-                existing = get_skill_state("last_audio_files", [])
+                new_files = process_uploaded_files(file_paths, selected_skill, run_env, proc_overlay=proc_overlay, main_spinner=main_spinner)
+                existing = get_skill_state("last_processed_files", [])
                 existing.extend(new_files)
-                set_skill_state("last_audio_files", existing)
+                set_skill_state("last_processed_files", existing)
                 if new_files:
-                    set_skill_state("audio_index", max(0, len(existing) - len(new_files)))
+                    set_skill_state("file_index", max(0, len(existing) - len(new_files)))
                     set_skill_state("last_output", new_files[0]["transcript"])
                     set_skill_state("auto_open_result", True)
                     st.success(f"✅ Successfully processed {len(file_paths)} file(s)")
             elif is_tts_skill and file_paths:
                 new_files = process_tts_files(file_paths, selected_skill, run_env, proc_overlay=proc_overlay, main_spinner=main_spinner)
-                existing = get_skill_state("last_audio_files", [])
+                existing = get_skill_state("last_processed_files", [])
                 existing.extend(new_files)
-                set_skill_state("last_audio_files", existing)
+                set_skill_state("last_processed_files", existing)
                 if new_files:
-                    set_skill_state("audio_index", max(0, len(existing) - len(new_files)))
+                    set_skill_state("file_index", max(0, len(existing) - len(new_files)))
                     set_skill_state("last_output", new_files[0]["transcript"])
                     set_skill_state("auto_open_result", True)
                     st.success(f"✅ Successfully converted {len(file_paths)} document(s) to audio")
             else:
-                # Standard single execution (for documents, generation, etc.)
-                result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, env=run_env)
+                # Standard execution PATH
+                all_execution_results = []
                 
-                if result.returncode == 0:
-                    st.success("Execution Completed Successfully")
-                    output_text = result.stdout.strip()
-                    
-                    # Detect ALL saved files (e.g., from ImageGenerate or Md2PDF)
-                    saved_paths = []
-                    for line in output_text.splitlines():
-                        if "Saved:" in line:
-                            path_str: str = str(line.split("Saved:")[1].strip())
-                            # If saved_path is relative, join it with cwd
-                            full_path: str = path_str if os.path.isabs(path_str) else os.path.join(str(cwd), path_str)
-                            if os.path.exists(full_path):
-                                saved_paths.append(full_path)
-                    
-                    if saved_paths:
-                        # For the direct download button, we'll use the first one as primary
-                        # but we'll integrate all into last_audio_files below
-                        with open(saved_paths[0], "rb") as f:
-                            set_skill_state("direct_download_file", {
-                                "name": os.path.basename(saved_paths[0]),
-                                "bytes": f.read()
-                            })
-                        
-                        # Integrate into the "Gallery/Playlist" view
-                        gallery_files = []
-                        for sp in saved_paths:
-                            with open(sp, "rb") as f:
-                                gallery_files.append({
-                                    "name": os.path.basename(sp),
-                                    "bytes": f.read(),
-                                    "transcript": f"✅ Generated: {os.path.basename(sp)}"
-                                })
-                        existing = get_skill_state("last_audio_files", [])
-                        existing.extend(gallery_files)
-                        set_skill_state("last_audio_files", existing)
-                        if gallery_files:
-                            set_skill_state("audio_index", max(0, len(existing) - len(gallery_files)))
-                    else:
-                        set_skill_state("direct_download_file", None)
-    
-                    # Filter logs: exclude diagnostic messages from the preview
-                    ignore_prefixes = ("Transcribing:", "Saved:", "Fetching:", "Capturing:", "Capturing high-fidelity", "Usage:")
-                    lines = [l for l in output_text.splitlines() if not l.startswith(ignore_prefixes)]
-                    clean_output = "\n".join(lines).strip()
-                    
-                    # Extract usage stats (suppress for manual TTS input per user request)
-                    usage_line = next((l for l in output_text.splitlines() if l.startswith("Usage:")), None)
-                    usage_details = ""
-                    if usage_line:
-                        is_manual_tts = is_tts_skill and not uploaded_files and manual_text != ""
-                        if not is_manual_tts:
-                            usage_details = f"\n\n**Statistics:** {usage_line.split(':', 1)[-1].strip()}"
-    
-                    # Ensure the popup opens if a file was saved, even if no text output
-                    if clean_output or saved_paths:
-                        display_msg = clean_output or f"✅ Successfully generated: {os.path.basename(saved_paths[0]) if saved_paths else 'Result'}"
-                        if usage_details:
-                            display_msg += usage_details
-                        set_skill_state("last_output", display_msg)
-                        set_skill_state("auto_open_result", True)
-                        
-                    # Store uploaded files (only first one gets the 'clean_output' transcript in manual mode)
-                    if file_paths:
-                        last_audio_files = []
-                        for i, fp in enumerate(file_paths):
-                            with open(fp, "rb") as af:
-                                # For text/rtf files, we might want to store the actual text content too
-                                content_preview = ""
-                                ext = os.path.splitext(fp)[1].lower()
-                                if ext in [".txt", ".rtf", ".md"]:
-                                    content_preview = read_text_file_preview(fp)
-    
-                                last_audio_files.append({
-                                    "name": os.path.basename(fp),
-                                    "bytes": af.read(),
-                                    "transcript": clean_output if i == 0 else "",
-                                    "content_preview": content_preview
-                                })
-                        existing = get_skill_state("last_audio_files", [])
-                        existing.extend(last_audio_files)
-                        set_skill_state("last_audio_files", existing)
-                        if last_audio_files:
-                            set_skill_state("audio_index", max(0, len(existing) - len(last_audio_files)))
-                        st.success(f"✅ Successfully processed {len(file_paths)} file(s)")
+                # Check if we should loop (multiple files and {FILE_1} placeholder exists in base_args)
+                # This ensures skills like Convtr-PlainTxt2PDF process ALL uploads.
+                # If base_args_input wasn't created (e.g., text area input), it falls back to single execution.
+                base_loop_args = locals().get('base_args_input', args_input)
+                should_loop = len(file_paths) > 1 and "{FILE_1}" in str(base_loop_args)
+                
+                if should_loop:
+                    for i, fp in enumerate(file_paths):
+                        # Construct a local command for this specific file using the preserved base_args
+                        local_args = str(base_loop_args).replace("{FILE_1}", str(fp))
+                        try:
+                            local_parsed = shlex.split(local_args)
+                            local_cmd = [python_cmd, script_path] + local_parsed
+                            res = subprocess.run(local_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
+                            all_execution_results.append((fp, res))
+                        except Exception as e:
+                            st.error(f"Error processing {fp}: {e}")
                 else:
-                    if "__ANTIGRAVITY_API_QUOTA_EXCEEDED__" in result.stderr:
-                        main_spinner.empty()
-                        if proc_overlay:
-                            proc_overlay.empty()
-                        import re
-                        quota_msg = ""
+                    # Single execution (normal behavior for Image Generation, URL, etc.)
+                    res = subprocess.run(command, cwd=cwd, capture_output=True, text=True, env=run_env)
+                    all_execution_results.append((file_paths[0] if file_paths else None, res))
+
+                # Now aggregate all results into the playlist
+                last_processed_files = []
+                
+                for fp, result in all_execution_results:
+                    if result.returncode == 0:
+                        output_text = result.stdout.strip()
                         
-                        if "kie" in str(selected_skill["basename"]).lower():
-                            # Extract the custom Kie.ai msg we injected in the skills
-                            match = re.search(r"Kie\.ai Error: (.*?)(?:\n|$)", result.stderr)
-                            if match:
-                                quota_msg = f"\n\n**Details:** {match.group(1).strip()}"
-                            st.warning(f"⚠️ **DENIED!** You have reached the maximum usage allowed by your **Kie.ai** balance. Please top up your Kie.ai account to continue.{quota_msg}")
-                        else:
-                            # Extract ElevenLabs data
-                            match = re.search(r"['\"]message['\"]:\s*['\"](.*?)['\"]", result.stderr)
-                            if match:
-                                quota_msg = f"\n\n**Usage stats:** {match.group(1)}"
-                            st.warning(f"⚠️ **DENIED!** You have reached the maximum usage allowed by your **ElevenLabs** active subscription/plan. Please upgrade your plan or wait for the quota to reset.{quota_msg}")
-                        st.stop()
+                        # Detect generated files for this specific execution
+                        res_bytes = None
+                        res_name = None
+                        saved_paths = []
+                        for line in output_text.splitlines():
+                            if "Saved:" in line:
+                                path_str = str(line.split("Saved:")[1].strip())
+                                full_path = path_str if os.path.isabs(path_str) else os.path.join(str(cwd), path_str)
+                                if os.path.exists(full_path):
+                                    saved_paths.append(full_path)
+                                    
+                        if saved_paths:
+                            # Capture the first saved file as the primary result for this entry
+                            res_name = os.path.basename(saved_paths[0])
+                            with open(saved_paths[0], "rb") as f:
+                                res_bytes = f.read()
+
+                        # Capture preview for the input file (if it exists)
+                        content_preview = ""
+                        if fp:
+                            ext = os.path.splitext(fp)[1].lower()
+                            if ext in [".txt", ".rtf", ".md", ".docx", ".doc", ".rtfd"] or (ext != ".pdf" and os.path.getsize(fp) < 1024 * 1024):
+                                content_preview = read_text_file_preview(fp)
+
+                        # Clean output (filter success messages)
+                        ignore_prefixes = ("Transcribing:", "Saved:", "Fetching:", "Capturing:", "Capturing high-fidelity", "Usage:")
+                        lines = [l for l in output_text.splitlines() if not l.startswith(ignore_prefixes)]
+                        clean_output = "\n".join(lines).strip()
+                        
+                        # Extract usage stats
+                        usage_line = next((l for l in output_text.splitlines() if l.startswith("Usage:")), None)
+                        usage_details = ""
+                        if usage_line:
+                            usage_details = f"\n\n**Statistics:** {usage_line.split(':', 1)[-1].strip()}"
+
+                        last_processed_files.append({
+                            "original_name": os.path.basename(fp) if fp else res_name,
+                            "name": os.path.basename(fp) if fp else res_name,
+                            "bytes": open(fp, "rb").read() if fp and os.path.exists(fp) else (res_bytes or b""),
+                            "transcript": (clean_output + usage_details) if clean_output or usage_details else f"✅ Generated: {res_name}",
+                            "content_preview": content_preview,
+                            "result_bytes": res_bytes,
+                            "result_name": res_name
+                        })
                     else:
-                        st.error("Execution Error")
-                        st.code(result.stderr)
-                        if result.stdout:
-                            st.code(result.stdout)
+                        # Handle errors (Quota, etc.)
+                        if "__ANTIGRAVITY_API_QUOTA_EXCEEDED__" in result.stderr:
+                            main_spinner.empty()
+                            if proc_overlay:
+                                proc_overlay.empty()
+                            import re
+                            quota_msg = ""
+                            
+                            if "kie" in str(selected_skill["basename"]).lower():
+                                match = re.search(r"Kie\.ai Error: (.*?)(?:\n|$)", result.stderr)
+                                if match:
+                                    quota_msg = f"\n\n**Details:** {match.group(1).strip()}"
+                                st.warning(f"⚠️ **DENIED!** You have reached the maximum usage allowed by your **Kie.ai** balance. Please top up your Kie.ai account to continue.{quota_msg}")
+                            else:
+                                match = re.search(r"['\"]message['\"]:\s*['\"](.*?)['\"]", result.stderr)
+                                if match:
+                                    quota_msg = f"\n\n**Usage stats:** {match.group(1)}"
+                                st.warning(f"⚠️ **DENIED!** You have reached the maximum usage allowed by your **ElevenLabs** active subscription/plan. Please upgrade your plan or wait for the quota to reset.{quota_msg}")
+                            st.stop()
+                        else:
+                            st.error("Execution Error")
+                            st.code(result.stderr)
+                            if result.stdout:
+                                st.code(result.stdout)
+
+                # Final integration
+                set_skill_state("last_processed_files", last_processed_files)
+                if last_processed_files:
+                    set_skill_state("file_index", 0)
+                    set_skill_state("last_output", last_processed_files[0]["transcript"])
+                    set_skill_state("auto_open_result", True)
+                    st.success(f"✅ Successfully processed {len(all_execution_results)} item(s)")
                     
         except Exception as e:
             st.error(f"❌ Error executing skill: {str(e)}")
@@ -1449,34 +1549,80 @@ if should_run:
 def show_result_popup(text: str):
     load_css() # Ensure styles are applied
     
-    audio_files = get_skill_state("last_audio_files", [])
-    idx = get_skill_state("audio_index", 0)
+    processed_files = get_skill_state("last_processed_files", [])
+    idx = get_skill_state("file_index", 0)
     is_media = False
     is_image = False
     
-    # Determine which text to display (specific clip transcript or the general output)
+    # 1. Immediate Media Detection (Before any UI guards)
+    if processed_files:
+        current_file = processed_files[min(idx, len(processed_files)-1)]
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(current_file["name"])
+        is_media = mime_type and (mime_type.startswith("audio/") or mime_type.startswith("video/"))
+    
+    # Identify which text to display (specific clip transcript or the general output)
     display_text = text
-    if audio_files:
-        current_idx = get_skill_state("audio_index", 0)
-        if current_idx < len(audio_files):
-            current_file = audio_files[current_idx]
-            display_text = current_file.get("transcript") or text
+    if processed_files:
+        current_idx = get_skill_state("file_index", 0)
+        if current_idx < len(processed_files):
+            current_file = processed_files[current_idx]
+            file_transcript = current_file.get("transcript", "")
+            content_preview = current_file.get("content_preview", "")
             
-            # If transcript is just a success message and we have original content, show it
-            if ("Successfully generated" in display_text or not display_text.strip()) and current_file.get("content_preview"):
-                display_text = current_file["content_preview"]
+            # Identify if the transcript or global text are just status/success messages
+            is_file_success = any(x in file_transcript for x in ["Successfully", "Generated:", "✅"]) or not file_transcript.strip()
+            is_global_success = any(x in text for x in ["Successfully", "Generated:", "✅"])
             
-    if audio_files:
-        current_file = audio_files[idx]
+            if content_preview.strip():
+                # If we have a preview, favor it over any success/batch messages
+                if is_file_success or is_global_success:
+                    display_text = content_preview
+                else:
+                    display_text = file_transcript or content_preview
+            else:
+                # If no preview, only show transcripts if they aren't just success messages
+                # This prevents "✅ Generated: ..." from appearing when navigating between files
+                ft_clean = file_transcript if not any(x in file_transcript for x in ["Successfully", "Generated:", "✅"]) else ""
+                txt_clean = text if not any(x in text for x in ["Successfully", "Generated:", "✅"]) else ""
+                display_text = ft_clean or txt_clean
+            
+    if processed_files:
+        current_file = processed_files[idx]
         import mimetypes
         mime_type, _ = mimetypes.guess_type(current_file["name"])
         
         # Only show the audio player if it's actually an audio/video file
         is_media = mime_type and (mime_type.startswith("audio/") or mime_type.startswith("video/"))
         is_image = mime_type and mime_type.startswith("image/")
+
+        # --- Quick Select List & Upload (Playlist) ---
+        if is_media:
+            st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
+        else:
+            st.markdown("<h3 class='centered-header'>MY DOCUMENTS</h3>", unsafe_allow_html=True)
+        
+        if get_skill_state("popup_batch_success"):
+            st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
+            set_skill_state("popup_batch_success", False)
+        
+        st.markdown("<div class='quick-select-btns'>", unsafe_allow_html=True)
+        for i, clip in enumerate(processed_files):
+            is_active = (i == get_skill_state("file_index", 0))
+            if is_active:
+                st.markdown(f"<div class='active-clip'>🟢 {clip['name']}</div>", unsafe_allow_html=True)
+            else:
+                with st.container():
+                    st.markdown("<div class='playlist-clip-marker'></div>", unsafe_allow_html=True)
+                    if st.button(f"⚪️ {clip['name']}", key=f"clip_btn_{i}", use_container_width=True):
+                        set_skill_state("file_index", i)
+                        set_skill_state("auto_open_result", True)
+                        st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("---")
         
         if is_media:
-            st.markdown(f"**Playing {idx + 1} of {len(audio_files)}**: `{current_file['name']}`")
+            st.markdown(f"**Playing {idx + 1} of {len(processed_files)}**: `{current_file['name']}`")
             st.audio(current_file["bytes"], format=mime_type, autoplay=True, loop=True)
             # stats_badge_text extracted below — pass it here so it appears inline with speed controls
             _stats_for_speed = ""
@@ -1487,28 +1633,240 @@ def show_result_popup(text: str):
             render_speed_controls(skill_id=selected_skill_id, stats_text=_stats_for_speed)
 
         elif is_image:
-            st.markdown(f"**Viewing Image {idx + 1} of {len(audio_files)}**: `{current_file['name']}`")
+            st.markdown(f"**Viewing Image {idx + 1} of {len(processed_files)}**: `{current_file['name']}`")
             st.image(current_file["bytes"], use_container_width=True)
         else:
-            st.markdown(f"**Viewing {idx + 1} of {len(audio_files)}**: `{current_file['name']}`")
-            # For documents, if we have a content preview, it will be shown in the transcript box below
+            display_name = current_file.get('original_name')
+            if not display_name:
+                # Fallback: strip .pdf from output name for document converters
+                name = current_file['name']
+                if name.lower().endswith('.pdf'):
+                    display_name = os.path.splitext(name)[0]
+                else:
+                    display_name = name
+            # Extract stats for inline badge — API stats or native word/char count
+            import re as _re_doc
+            _doc_stats = ""
+            _doc_stats_match = _re_doc.search(r"\*\*Statistics:\*\*\s*(.+)", display_text)
+            if _doc_stats_match:
+                _doc_stats = _doc_stats_match.group(1).strip()
+            elif display_text.strip():
+                # Native word & character count
+                _word_count = len(display_text.split())
+                _char_count = len(display_text)
+                _doc_stats = f"{_word_count:,} words · {_char_count:,} chars"
+            if _doc_stats:
+                st.markdown(f"**Viewing {idx + 1} of {len(processed_files)}**: `{display_name}`  &nbsp; <span style='background:#444;color:#ccc;padding:2px 8px;border-radius:6px;font-size:0.8em;'>{_doc_stats}</span>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"**Viewing {idx + 1} of {len(processed_files)}**: `{display_name}`")
         
         # Show navigation buttons if there are multiple files
-        if len(audio_files) > 1:
+        if len(processed_files) > 1:
             label_type = "Clip" if is_media else "File"
+            st.markdown("<div class='nav-button-container'>", unsafe_allow_html=True)
             col_prev, col_next = st.columns(2)
             with col_prev:
                 st.markdown("<div class='nav-btn-marker' style='display:none;'></div>", unsafe_allow_html=True)
                 if st.button(f"⏮ Previous {label_type}", key="prev_clip_btn", use_container_width=True):
-                    set_skill_state("audio_index", (idx - 1) % len(audio_files))
+                    # Prevent going below 0
+                    set_skill_state("file_index", max(0, idx - 1))
                     set_skill_state("auto_open_result", True)
                     st.rerun()
             with col_next:
                 st.markdown("<div class='nav-btn-marker' style='display:none;'></div>", unsafe_allow_html=True)
                 if st.button(f"Next {label_type} ⏭", key="next_clip_btn", use_container_width=True):
-                    set_skill_state("audio_index", (idx + 1) % len(audio_files))
+                    set_skill_state("file_index", min(idx + 1, len(processed_files) - 1))
                     set_skill_state("auto_open_result", True)
                     st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.components.v1.html(
+                """
+                <script>
+                const doc = window.parent.document;
+                
+                // Remove existing listener to avoid duplicates on reruns
+                if (doc.windowKeydownListener) {
+                    doc.removeEventListener('keydown', doc.windowKeydownListener);
+                }
+                
+                // Clear any stale focus/inline styles from previous rerun
+                doc.querySelectorAll('button').forEach(b => {
+                    b.blur();
+                    b.classList.remove('kb-focus');
+                });
+                
+                doc.windowKeydownListener = function(e) {
+                    // Don't trigger if user is typing in an input field
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                    
+                    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                        const allBtns = Array.from(doc.querySelectorAll('button'));
+                        // Clear highlight on ALL buttons first for a clean state
+                        allBtns.forEach(b => { b.classList.remove('kb-focus'); b.blur(); });
+
+                        // Search the button's inner text case-insensitively
+                        const targetStr = e.key === 'ArrowLeft' ? 'PREVIOUS' : 'NEXT';
+                        const targetBtn = allBtns.find(b => {
+                            const t = b.innerText || "";
+                            return t.toUpperCase().includes(targetStr);
+                        });
+                        
+                        if (targetBtn) {
+                            targetBtn.focus();
+                            targetBtn.classList.add('kb-focus');
+                            setTimeout(() => { targetBtn.click(); }, 300);
+                        }
+                    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        // Only target download/merge buttons (with emoji icons), NOT the COPY button
+                        const buttons = Array.from(doc.querySelectorAll('button')).filter(b => {
+                            const text = b.innerText || "";
+                            return text.includes("📥") || text.includes("📦") || text.includes("📑");
+                        });
+                        
+                        if (buttons.length === 0) return;
+                        
+                        // Use the currently kb-focused button for indexing, fallback to activeElement
+                        let currentIndex = buttons.indexOf(doc.querySelector('button.kb-focus'));
+                        if (currentIndex === -1) currentIndex = buttons.indexOf(doc.activeElement);
+
+                        if (e.key === 'ArrowDown') {
+                            currentIndex = (currentIndex + 1) % buttons.length;
+                        } else {
+                            if (currentIndex <= 0) {
+                                currentIndex = buttons.length - 1;
+                            } else {
+                                currentIndex = currentIndex - 1;
+                            }
+                        }
+                        // Clear kb-focus and blur ALL buttons first
+                        doc.querySelectorAll('button').forEach(b => { b.classList.remove('kb-focus'); b.blur(); });
+                        
+                        const targetBtn = buttons[currentIndex];
+                        targetBtn.focus();
+                        targetBtn.classList.add('kb-focus');
+                        e.preventDefault();
+                    } else if (e.key === 'Enter') {
+                        // Click the currently kb-focused button
+                        const focused = doc.querySelector('button.kb-focus');
+                        if (focused) {
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            const text = (focused.innerText || '').toUpperCase();
+                            const link = focused.querySelector('a');
+                            
+                            // Top "DOWNLOAD [TYPE] NOW" button — immediate download
+                            if (text.includes('DOWNLOAD') && text.includes('NOW')) {
+                                if (link) {
+                                    link.click();
+                                } else {
+                                    focused.click();
+                                }
+                            } else {
+                                // All other buttons (ZIP, Merge) — trigger Save As dialog
+                                if (link) {
+                                    const origDownload = link.getAttribute('download');
+                                    link.removeAttribute('download');
+                                    link.click();
+                                    // Restore download attribute after a tick
+                                    setTimeout(() => {
+                                        if (origDownload !== null) link.setAttribute('download', origDownload);
+                                    }, 100);
+                                } else {
+                                    focused.click();
+                                }
+                            }
+                        }
+                    }
+                };
+                
+                doc.addEventListener('keydown', doc.windowKeydownListener);
+                
+                // Apply specific classes to Streamlit buttons AND inject CSS into PARENT document
+                if (doc.applyButtonClassesInterval) clearInterval(doc.applyButtonClassesInterval);
+                doc.applyButtonClassesInterval = setInterval(() => {
+                    doc.querySelectorAll('button').forEach(b => {
+                        const t = (b.innerText || "").toUpperCase();
+                        if (t.includes('MERGE ALL')) {
+                            b.classList.add('merge-btn-cyan');
+                        }
+                        if (t.includes('PREVIOUS') || t.includes('NEXT')) {
+                            b.classList.add('nav-btn-15px');
+                            // On mouseover, clear keyboard focus class from ALL nav buttons
+                            if (!b._hoverBound) {
+                                b._hoverBound = true;
+                                b.addEventListener('mouseenter', () => {
+                                    doc.querySelectorAll('button.nav-btn-15px').forEach(nb => {
+                                        nb.classList.remove('kb-focus');
+                                    });
+                                });
+                            }
+                        }
+                        // Download/merge buttons — clear keyboard focus class on hover
+                        if (t.includes('📥') || t.includes('📦') || t.includes('📑')) {
+                            if (!b._dlHoverBound) {
+                                b._dlHoverBound = true;
+                                b.addEventListener('mouseenter', () => {
+                                    doc.querySelectorAll('button').forEach(ob => {
+                                        const ot = ob.innerText || '';
+                                        if (ot.includes('📥') || ot.includes('📦') || ot.includes('📑')) {
+                                            ob.classList.remove('kb-focus');
+                                        }
+                                    });
+                                });
+                            }
+                        }
+                    });
+                }, 100);
+                
+                // Inject CSS into the PARENT document (not the iframe) so it actually applies
+                if (!doc.getElementById('ag-custom-btn-styles')) {
+                    const style = doc.createElement('style');
+                    style.id = 'ag-custom-btn-styles';
+                    style.textContent = `
+                        /* White outline on hover only - focus-visible for keyboard only */
+                        .stApp button:hover {
+                            border: 2px solid #ffffff !important;
+                            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85) !important;
+                            outline: none !important;
+                        }
+                        .stApp button:focus {
+                            outline: none !important;
+                            border-color: transparent !important;
+                            box-shadow: none !important;
+                        }
+                        /* Keyboard focus class - overrides :focus suppression */
+                        .stApp button.kb-focus {
+                            border: 2px solid #ffffff !important;
+                            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85) !important;
+                        }
+                        /* Specific Cyan override for Merge buttons - all states */
+                        .stApp button.merge-btn-cyan,
+                        .stApp button.merge-btn-cyan:hover,
+                        .stApp button.merge-btn-cyan:active,
+                        .stApp button.merge-btn-cyan:focus {
+                            background-color: #00FFFF !important;
+                            color: black !important;
+                            border-color: #00cccc !important;
+                        }
+                        .stApp button.merge-btn-cyan:hover {
+                            background-color: #00e5e5 !important;
+                            border: 2px solid #ffffff !important;
+                            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85) !important;
+                        }
+                        .stApp button.merge-btn-cyan p,
+                        .stApp button.merge-btn-cyan div,
+                        .stApp button.merge-btn-cyan:hover p,
+                        .stApp button.merge-btn-cyan:hover div {
+                            color: black !important;
+                        }
+                    `;
+                    doc.head.appendChild(style);
+                }
+                </script>
+                """,
+                height=0
+            )
             
     # Render the transcription box BELOW the navigation buttons
     import html
@@ -1521,43 +1879,7 @@ def show_result_popup(text: str):
         stats_badge_text = stats_match.group(1).strip()
         display_text = _re.sub(r"\n\n\*\*Statistics:\*\*\s*.+", "", display_text).strip()
     
-    if is_media or is_image:
-        if display_text:
-            safe_text = html.escape(display_text)
-            st.markdown(
-                f"<div class='transcript-box'>{safe_text.replace(chr(10), '<br>')}</div>",
-                unsafe_allow_html=True
-            )
-    else:
-        # Use st.code with no language for reliable, scrollable exact-text formatting
-        st.code(display_text, language="text")
-    
-    # --- Direct Download Support (Moved under preview, above copy) ---
-    direct_file = get_skill_state("direct_download_file")
-    if direct_file:
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Check if it's an audio file and play it natively
-        import mimetypes
-        dl_mime_type, _ = mimetypes.guess_type(direct_file["name"])
-        if dl_mime_type and dl_mime_type.startswith("audio/"):
-            st.audio(direct_file["bytes"], format=dl_mime_type, autoplay=True)
-            render_speed_controls(skill_id=selected_skill_id)
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-        col1, col2, col3 = st.columns([2, 3, 2])
-        with col2:
-            st.download_button(
-                label=f"📥 DOWNLOAD {os.path.splitext(direct_file['name'])[1][1:].upper()} NOW",
-                data=direct_file["bytes"],
-                file_name=direct_file["name"],
-                mime=dl_mime_type if dl_mime_type else "application/octet-stream",
-                use_container_width=True,
-                type="primary",
-                key="direct_download_btn_bottom"
-            )
-        
-    # Solid Yellow "COPY" button centered — now ABOVE the stats badge
+    # --- COPY button ABOVE preview ---
     import json
     js_escaped_text = json.dumps(display_text)
     st.components.v1.html(
@@ -1583,7 +1905,7 @@ def show_result_popup(text: str):
         const btn = document.getElementById('copy-btn');
         btn.onclick = function() {{
             navigator.clipboard.writeText({js_escaped_text}).then(() => {{
-                btn.innerText = "✓ COPIED!";
+                btn.innerText = "\u2713 COPIED!";
                 btn.style.backgroundColor = "#8cd775";
                 btn.style.borderColor = "#8cd775";
                 setTimeout(() => {{
@@ -1605,128 +1927,101 @@ def show_result_popup(text: str):
         height=60,
     )
 
-
-
-    # --- Audio-Specific Download & Playlist Options ---
-    # Hide all of these bottom elements if this is a document result
-    if not is_media:
-        st.markdown("")
-        col1, col2 = st.columns([5, 1])
-        with col2:
-            if st.button("✖ Clear Result", key="close_popup", use_container_width=True):
-                set_skill_state("last_output", None)
-                set_skill_state("auto_open_result", None)
-                set_skill_state("direct_download_file", None)
-                st.rerun()
-        return
-
-    # --- Quick Select List & Upload (Playlist) ---
-    if audio_files:
-        current_file = audio_files[idx]
-        import mimetypes
-        mime_type, _ = mimetypes.guess_type(current_file["name"])
-        is_media = mime_type and (mime_type.startswith("audio/") or mime_type.startswith("video/"))
+    # --- Preview box BELOW copy button ---
+    if is_media or is_image:
+        if display_text:
+            safe_text = html.escape(display_text)
+            st.markdown(
+                f"<div class='transcript-box'>{safe_text.replace(chr(10), '<br>')}</div>",
+                unsafe_allow_html=True
+            )
+    else:
+        # Use the same transcript-box styling for document previews
+        if display_text:
+            safe_text = html.escape(display_text)
+            st.markdown(
+                f"<div class='transcript-box'>{safe_text.replace(chr(10), '<br>')}</div>",
+                unsafe_allow_html=True
+            )
+    
+    # --- Dynamic Direct Download Support (Top level, synced to active file) ---
+    if processed_files:
+        current_item = processed_files[idx]
+        res_bytes = current_item.get("result_bytes")
+        res_name = current_item.get("result_name")
         
-        if is_media:
-            st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
-        
-        if get_skill_state("popup_batch_success"):
-            st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
-            set_skill_state("popup_batch_success", False)
-        
-        st.markdown("<div class='quick-select-btns'>", unsafe_allow_html=True)
-        for i, clip in enumerate(audio_files):
-            is_active = (i == get_skill_state("audio_index", 0))
-            if is_active:
-                st.markdown(f"<div class='active-clip'>🟢 {clip['name']}</div>", unsafe_allow_html=True)
-            else:
-                with st.container():
-                    st.markdown("<div class='playlist-clip-marker'></div>", unsafe_allow_html=True)
-                    if st.button(f"⚪️ {clip['name']}", key=f"clip_btn_{i}", use_container_width=True):
-                        set_skill_state("audio_index", i)
-                        set_skill_state("auto_open_result", True)
-                        st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("---")
-
-    # --- Download Selection & Actions (MOVED BELOW LIST) ---
-    st.markdown("---")
-    fname = "transcript"
-    original_fullname = "Unknown Source"
-    if audio_files:
-        original_fullname = audio_files[idx]["name"]
-        fname = os.path.splitext(original_fullname)[0]
-
-    download_text = display_text + f"\n\n---\nSource File: {original_fullname}"
-
-    with st.container():
-        options = ["TXT (.txt)", "PDF (.pdf)", "DOCX (.docx)", "DOC (.doc)"]
-        if is_tts_skill:
-            options = ["MP3 Audio (.mp3)"] + options
+        if res_bytes and res_name:
+            st.markdown("<br>", unsafe_allow_html=True)
             
-        selected_format = st.selectbox(
-            "Download Format:",
-            options=options,
-            index=0,
-            key="dl_format_selection"
-        )
-        
-        col_dl1, col_dl2 = st.columns(2)
-        
-        with col_dl1:
-            if selected_format.startswith("MP3"):
-                st.download_button(
-                    label="📥 Download Current",
-                    data=current_file["bytes"],
-                    file_name=current_file["name"],
-                    mime="audio/mpeg",
-                    use_container_width=True,
-                    type="primary"
-                )
-            elif selected_format.startswith("TXT"):
-                st.download_button(
-                    label="📥 Download Current",
-                    data=download_text,
-                    file_name=f"{fname}.txt",
-                    mime="text/plain",
-                    use_container_width=True,
-                    type="primary"
-                )
-            elif selected_format.startswith("PDF"):
-                with st.spinner("Generating PDF..."):
-                    pdf_bytes = generate_pdf_from_text(download_text)
-                if pdf_bytes:
-                    st.download_button(label="📥 Download Current", data=pdf_bytes, file_name=f"{fname}.pdf", mime="application/pdf", use_container_width=True, type="primary")
-            elif selected_format.startswith("DOCX"):
-                with st.spinner("Generating DOCX..."):
-                    docx_bytes = generate_docx_from_text(download_text)
-                if docx_bytes:
-                    st.download_button(label="📥 Download Current", data=docx_bytes, file_name=f"{fname}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True, type="primary")
-            elif selected_format.startswith("DOC"):
-                with st.spinner("Generating DOC..."):
-                    doc_bytes = generate_doc_rtf_from_text(download_text)
-                st.download_button(label="📥 Download Current", data=doc_bytes, file_name=f"{fname}.doc", mime="application/msword", use_container_width=True, type="primary")
+            # Use mimetypes for clean extension labeling
+            import mimetypes
+            dl_mime, _ = mimetypes.guess_type(res_name)
+            ext_label = os.path.splitext(res_name)[1][1:].upper()
+            
+            # Specialized player for audio results (like TTS)
+            if dl_mime and dl_mime.startswith("audio/"):
+                st.audio(res_bytes, format=dl_mime, autoplay=True)
+                render_speed_controls(skill_id=selected_skill_id)
+                st.markdown("<br>", unsafe_allow_html=True)
                 
-        with col_dl2:
-            if audio_files and len(audio_files) > 0:
-                with st.spinner(f"Preparing ZIP for {len(audio_files)} files..."):
-                    zip_bytes = generate_zip_of_all_transcripts(audio_files, selected_format)
-                st.download_button(label=f"📦 Download All ({len(audio_files)} files)", data=zip_bytes, file_name="All_Transcriptions.zip", mime="application/zip", use_container_width=True, type="tertiary")
-            else:
-                st.button("📦 Download All (ZIP)", disabled=True, use_container_width=True, type="tertiary")
-        
-        st.markdown("---")
-        
-
+            col1, col2, col3 = st.columns([2, 3, 2])
+            with col2:
+                st.download_button(
+                    label=f"📥 DOWNLOAD {ext_label} NOW",
+                    data=res_bytes,
+                    file_name=res_name,
+                    mime=dl_mime if dl_mime else "application/octet-stream",
+                    use_container_width=True,
+                    type="primary",
+                    key=f"direct_download_btn_sync_{idx}" # Key must be index-specific to prevent state reuse
+                )
             
-    st.markdown("")
+            # --- TOP BATCH ACTIONS (For PDF Converter) ---
+            if selected_skill["basename"] == "Convtr-PlainTxt2PDF" and len(processed_files) > 1:
+                st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+                
+                # ZIP Options (Include Sources on top)
+                zip_bytes_sourced = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=True)
+                st.download_button(label=f"📦 DOWNLOAD ALL (INCLUDE SOURCES)", data=zip_bytes_sourced, file_name="All_Files_Sourced.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_sourced_top")
+                
+                zip_bytes_clean = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=False)
+                st.download_button(label=f"📦 DOWNLOAD ALL (CLEAN)", data=zip_bytes_clean, file_name="All_Files_Clean.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_clean_top")
+                
+                # Merge Options (Include Sources on top)
+                merged_parts_clean = []
+                merged_parts_sourced = []
+                for f in processed_files:
+                    content = f.get("content_preview") or ""
+                    if not content.strip():
+                        transcript = f.get("transcript", "")
+                        if not any(x in transcript for x in ["Successfully", "Generated:", "✅"]):
+                            content = transcript
+                    if content.strip():
+                        merged_parts_clean.append(content)
+                        merged_parts_clean.append("\n")
+                        merged_parts_sourced.append(f"Sourced from: {f['name']}") # Matches orange styling in script
+                        merged_parts_sourced.append("\n\n")
+                        merged_parts_sourced.append(content)
+                        merged_parts_sourced.append("\n")
+                
+                merged_bytes_clean = generate_pdf_from_text("\n".join(merged_parts_clean))
+                merged_bytes_sourced = generate_pdf_from_text("\n".join(merged_parts_sourced))
+                if merged_bytes_sourced:
+                    st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="primary", key="popup_merge_pdf_sourced_top")
+                if merged_bytes_clean:
+                    st.download_button(label=f"📑 MERGE ALL (CLEAN)", data=merged_bytes_clean, file_name="Merged_Document_Clean.pdf", mime="application/pdf", use_container_width=True, type="primary", key="popup_merge_pdf_clean_top")
+
+
+    # --- Bottom Clear Buttons ---
+    st.markdown("---")
     col1, col2 = st.columns([5, 1])
     with col2:
-        if st.button("✖ Clear Result", key="close_popup", use_container_width=True):
+        if st.button("✖ Clear Result", key="close_popup_final", use_container_width=True):
             set_skill_state("last_output", None)
             set_skill_state("auto_open_result", None)
             set_skill_state("direct_download_file", None)
             st.rerun()
+
 
 # --- ALWAYS RENDER RESULT INLINE IF IT EXISTS ---
 last_output = get_skill_state("last_output")

@@ -1,4 +1,4 @@
-v2 SKILLS
+v2 SKILLS - streamlit
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json

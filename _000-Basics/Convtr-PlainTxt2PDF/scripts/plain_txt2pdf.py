@@ -343,15 +343,33 @@ def convert(input_path: str, output_path: str, font_size: int = 11, margin: int 
                 if c in ("◦", "○", "∘"): processed_chars.append("*")
                 else: processed_chars.append(_safe_char_translate(c))
             safe_line = "".join(processed_chars).expandtabs(4).encode('cp1252', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 6, safe_line)
+            
+            # --- Document Header Styling ---
+            if safe_line.startswith("--- Document:") or safe_line.startswith("Sourced from:"):
+                orig_font = pdf.font_family
+                orig_size = pdf.font_size_pt
+                pdf.set_font("helvetica", style="B", size=int(orig_size * 1.15))
+                pdf.set_text_color(255, 140, 0) # Orange
+                pdf.multi_cell(0, 6, safe_line)
+                pdf.set_text_color(0, 0, 0) # Reset to Black
+                pdf.set_font(orig_font, style="", size=orig_size)
+            else:
+                pdf.multi_cell(0, 6, safe_line)
         else:
             safe_line = line.expandtabs(4)
             # Handle the separator and source file footer (keep them simple)
-            if (safe_line.startswith("---") and i >= total_lines - 3) or \
-               (safe_line.startswith("Source File:") and i >= total_lines - 2):
+            if safe_line.startswith("Source File:") and i >= total_lines - 2:
                 pdf.set_font("NotoSans", size=font_size if "---" in safe_line else int(font_size * 0.85))
                 pdf.set_x(margin)
                 pdf.multi_cell(0, 6, safe_line, align='C')
+            elif (safe_line.startswith("--- Document:") or safe_line.startswith("Sourced from:")):
+                # Handle Merge Source Headers: 115% size, Bold, Orange
+                pdf.set_font("helvetica", style="B", size=int(font_size * 1.15))
+                pdf.set_text_color(255, 140, 0) # Orange
+                pdf.set_x(margin)
+                pdf.multi_cell(0, 6, safe_line)
+                pdf.set_text_color(0, 0, 0) # Reset to Black
+                pdf.set_font("NotoSans", style="", size=font_size)
             else:
                 # High-Fidelity Manual Fragmenting to preserve bonding!
                 fragments = get_line_fragments(safe_line)
