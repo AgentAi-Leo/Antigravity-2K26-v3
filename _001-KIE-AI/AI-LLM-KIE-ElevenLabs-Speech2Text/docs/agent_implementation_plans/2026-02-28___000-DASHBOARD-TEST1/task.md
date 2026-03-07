@@ -2,7 +2,7 @@
 **Mandatory "Definition of Done" for all tasks:**
 Every new or updated `implementation_plan` and `walkthrough` MUST be automatically and silently archived to both:
 1. **Skill-Specific Docs:** `.../[SKILL]/docs/agent_implementation_plans/[DATE]/`
-2. **Global Archive:** `.../000z-IMPLIMENTATION_PLANS/[DATE]_[SKILL]/`
+2. **Global Archive:** `.../z999-IMPLIMENTATION_PLANS-ALL/[DATE]_[SKILL]/`
 *This must be completed before any `notify_user` call. No further prompting required.*
 
 ---
@@ -30,5 +30,5 @@ Every new or updated `implementation_plan` and `walkthrough` MUST be automatical
 - [x] Verify no secrets are present in any current artifacts
 - [x] Intercept ElevenLabs API quota errors in sub-scripts
 - [x] Implement dashboard intercept for user-friendly quota warning popup
-- [x] Copy implementation plan to master `000z-IMPLIMENTATION_PLANS` directory
+- [x] Copy implementation plan to master `z999-IMPLIMENTATION_PLANS-ALL` directory
 - [x] Copy implementation plan to individual `_001-ElevenLabs` skill directories

@@ -1,7 +1,7 @@
 # GLOBAL DOCUMENTATION POLICY
 - **Requirement**: ALL new and updated Implementation Plans and Walkthroughs MUST be saved to BOTH:
     1.  The specific skill's documentation folder: `[SKILL]/docs/agent_implementation_plans/[DATE]/`
-    2.  The global mirror folder: `000z-IMPLIMENTATION_PLANS/[DATE]_[SKILL]/`
+    2.  The global mirror folder: `z999-IMPLIMENTATION_PLANS-ALL/[DATE]_[SKILL]/`
 - **Adherence**: This is a mandatory, persistent requirement for all future tasks.
 
 # Task: Resolve Missing visual output for Convtr-Md2PDF
@@ -43,7 +43,7 @@
 <!-- [x] **Project Documentation Archiving**
     - [x] Archive Skill Isolation Plan/Walkthrough to `Convtr-PlainTxt2PDF/docs/...`
     - [x] Always archive all future implementation plans and walkthroughs to the project docs folder.
-    - [x] Archive all plans to global `000z-IMPLIMENTATION_PLANS` folder. -->
+    - [x] Archive all plans to global `z999-IMPLIMENTATION_PLANS-ALL` folder. -->
 - [x] **UI Refinement: Custom Processing Overlay**
     - [x] Hide default Streamlit "Running" status icon (Running Man).
     - [x] Implement centered "PROCESSING..." overlay with progress bar.

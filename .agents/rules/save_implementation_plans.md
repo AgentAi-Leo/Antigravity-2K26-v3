@@ -11,7 +11,7 @@ Whenever you generate an implementation plan or design document (such as `implem
    *Example*: `___000A-ANTIGRAVITY-SKILLS/AI-LLM-Text2Speech/docs/agent_implementation_plans/2026-02-28/implementation_plan.md`
 
 2. **Centralized (Global Tracker)**:
-   By default (until otherwise instructed), copy the plan into the root project's master documentation tracker under `000z-IMPLIMENTATION_PLANS/YYYY-MM-DD_[SkillName]/`.
-   *Example*: `___000A-ANTIGRAVITY-SKILLS/000z-IMPLIMENTATION_PLANS/2026-02-28_AI-LLM-Text2Speech/implementation_plan.md`
+   By default (until otherwise instructed), copy the plan into the root project's master documentation tracker under `z999-IMPLIMENTATION_PLANS-ALL/YYYY-MM-DD_[SkillName]/`.
+   *Example*: `___000A-ANTIGRAVITY-SKILLS/z999-IMPLIMENTATION_PLANS-ALL/2026-02-28_AI-LLM-Text2Speech/implementation_plan.md`
 
 This guarantees that the skill remains portable while simultaneously keeping an easily browsable chronological history for the user at the root of the project.
