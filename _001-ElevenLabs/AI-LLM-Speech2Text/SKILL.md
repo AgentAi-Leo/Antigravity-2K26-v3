@@ -1,0 +1,79 @@
+---
+name: speech-to-text-with-ai
+description: Transcribes audio or video files to text using Gemini's native audio model or OpenAI Whisper. Outputs plain text or SRT subtitles. Use when the user asks to transcribe audio, convert speech to text, transcribe a video, or generate subtitles.
+---
+
+# AI-LLM-Speech2Text Skill
+
+## When to Use This Skill
+- User says "transcribe this audio", "convert speech to text", "transcribe this video", or "generate subtitles"
+- Converting meeting recordings, podcasts, or voice memos to text
+- Generating SRT subtitle files for videos
+
+---
+
+## Prerequisites
+
+```bash
+export GEMINI_API_KEY="..."    # for Gemini audio (default, supports .mp3 .wav .m4a .mp4)
+# OR: OPENAI_API_KEY            # for Whisper (broader format support)
+```
+
+---
+
+## Workflow
+- [ ] 1. Set API key
+- [ ] 2. Run `scripts/audio_transcribe.py --input recording.mp3`
+- [ ] 3. Review the output text or SRT file
+
+---
+
+## Commands
+
+```bash
+# Transcribe an audio file
+python3 scripts/audio_transcribe.py --input meeting.mp3
+
+# Save transcript to file
+python3 scripts/audio_transcribe.py --input podcast.m4a --output transcript.txt
+
+# Generate SRT subtitles
+python3 scripts/audio_transcribe.py --input video.mp4 --format srt --output subtitles.srt
+
+# Specify language (faster, more accurate)
+python3 scripts/audio_transcribe.py --input audio.wav --language Spanish
+
+# Use Whisper (OpenAI)
+python3 scripts/audio_transcribe.py --input audio.mp3 --provider openai
+
+# Translate to English while transcribing
+python3 scripts/audio_transcribe.py --input audio.mp3 --translate-to English
+```
+
+---
+
+## Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--input` | *(required)* | Audio/video file path |
+| `--output` | stdout | Save transcript to file |
+| `--format` | `text` | `text` or `srt` (subtitles) |
+| `--language` | auto-detect | Source language hint |
+| `--translate-to` | off | Translate output to this language |
+| `--provider` | `gemini` | `gemini` or `openai` (Whisper) |
+| `--model` | `gemini-2.5-flash-native-audio-preview-12-2025` | Override model |
+
+---
+
+## Supported Formats
+
+| Provider | Formats |
+|---|---|
+| Gemini | `.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.mp4`, `.mov` |
+| OpenAI Whisper | `.mp3`, `.mp4`, `.mpeg`, `.mpga`, `.m4a`, `.wav`, `.webm` |
+
+---
+
+## Resources
+- `scripts/audio_transcribe.py` — core script (stdlib urllib + base64, no pip required)

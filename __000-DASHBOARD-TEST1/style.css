@@ -1,0 +1,460 @@
+/* Antigravity Skills Dashboard - Custom Styles */
+
+/* 1. Transcription Result Box */
+.transcript-box {
+    background-color: #000000;
+    color: #ffffff;
+    font-size: 23px;
+    line-height: 1.8;
+    padding: 28px;
+    border-radius: 10px;
+    border: 2px solid #ffffff;
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+/* 1.1 Unlock Button Container - Centering */
+.unlock-btn-container {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+/* 2. Navigation Buttons (Cyan #acf0f1) */
+.nav-button-container button {
+    background-color: #acf0f1 !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    font-size: 1.3em !important;
+    /* +30% larger text */
+    padding: 2px 10px !important;
+    /* ~40% smaller padding */
+    min-height: unset !important;
+    height: auto !important;
+}
+
+.nav-button-container button:hover {
+    background-color: #8ed6d7 !important;
+}
+
+
+
+/* 5. Center Headers */
+.centered-header {
+    text-align: center;
+    font-size: 200% !important;
+    /* 100% larger than default */
+}
+
+/* 6. Login Page & Accent Elements - RESTRICTED TO LOGIN PAGE via :has() */
+/* Style secondary and form-submit buttons (Unlock) yellow and match size to Browse button */
+.stApp:has(.login-container) button[data-testid*="secondary"],
+.stApp:has(.login-container) button[data-testid="stFormSubmitButton"] {
+    background-color: #ffe700 !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    border: 1px solid #ffe700 !important;
+    /* Match Browse button size */
+    height: 38px !important;
+    padding: 0.25rem 0.75rem !important;
+    font-size: 1rem !important;
+    width: auto !important;
+}
+
+.stApp:has(.login-container) button[data-testid*="secondary"]:hover,
+.stApp:has(.login-container) button[data-testid="stFormSubmitButton"]:hover {
+    background-color: #ffd600 !important;
+    border-color: #ffd600 !important;
+}
+
+
+/* Ensure password visibility toggle stays yellow/black */
+.login-container div[data-testid="stTextInput"] button {
+    background-color: #ffe700 !important;
+    color: #000000 !important;
+    border: 1px solid #ffe700 !important;
+}
+
+.login-container div[data-testid="stTextInput"] button svg {
+    fill: #000000 !important;
+    color: #000000 !important;
+}
+
+/* SPECIFIC: File Uploader "Browse files" button - signature yellow */
+[data-testid="stFileUploader"] button {
+    background-color: #ffe700 !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    border: 1px solid #ffe700 !important;
+}
+
+[data-testid="stFileUploader"] button:hover {
+    background-color: #ffd600 !important;
+    border-color: #ffd600 !important;
+}
+
+
+
+/* SPECIFIC: Single Download Button (Primary type in Streamlit) */
+button[kind="primary"] {
+    background-color: #8cd775 !important;
+    /* Darker Green Static */
+    color: #000000 !important;
+    font-weight: bold !important;
+    border: 1px solid #8cd775 !important;
+    opacity: 1 !important;
+}
+
+button[kind="primary"]:hover {
+    background-color: #9fe788 !important;
+    /* Lighter Green Hover */
+    border-color: #9fe788 !important;
+}
+
+/* SPECIFIC: Download All Button (Tertiary type in Streamlit) */
+button[kind="tertiary"] {
+    background-color: #e67a00 !important;
+    /* Darker Orange Static */
+    color: #ffffff !important;
+    font-weight: bold !important;
+    border: 1px solid #e67a00 !important;
+    opacity: 1 !important;
+}
+
+button[kind="tertiary"]:hover {
+    background-color: #ff8700 !important;
+    /* Lighter Orange Hover */
+    border-color: #ff8700 !important;
+}
+
+/* Custom styling for standard navigation buttons inside the result popup */
+div[data-testid="stColumn"]:has(.nav-btn-marker) button {
+    background-color: #00a0e6 !important;
+    color: #000000 !important;
+    border: 1px solid #00a0e6 !important;
+    border-radius: 6px !important;
+    font-weight: bold !important;
+    transition: all 0.2s ease !important;
+    opacity: 1 !important;
+}
+
+div[data-testid="stColumn"]:has(.nav-btn-marker) button:hover {
+    background-color: #00bfff !important;
+    border-color: #00bfff !important;
+}
+
+/* Specific red styling for the close button using CSS :has() */
+div[data-testid="stColumn"]:has(.close-btn-marker) button {
+    background-color: #ff0000 !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    border: 1px solid #ff0000 !important;
+    opacity: 1 !important;
+}
+
+div[data-testid="stColumn"]:has(.close-btn-marker) button:hover {
+    background-color: #cc0000 !important;
+    border-color: #cc0000 !important;
+}
+
+
+/* SPECIFIC: TTS Manual ENTER button (Green #18a74a) */
+/* Target strictly via the marker placed in app.py */
+div[data-testid="stVerticalBlock"]:has(> div .tts-enter-marker) div[data-testid="stFormSubmitButton"] {
+    display: flex !important;
+    justify-content: flex-end !important;
+    width: 100% !important;
+}
+
+div[data-testid="stVerticalBlock"]:has(> div .tts-enter-marker) div[data-testid="stFormSubmitButton"] button {
+    background-color: #18a74a !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    border: 1px solid #18a74a !important;
+    height: 38px !important;
+    padding: 0.25rem 0.75rem !important;
+    font-size: 1rem !important;
+    width: auto !important;
+    min-width: 120px !important;
+}
+
+div[data-testid="stVerticalBlock"]:has(> div .tts-enter-marker) div[data-testid="stFormSubmitButton"] button:hover {
+    background-color: #148c3e !important;
+    border-color: #148c3e !important;
+}
+
+/* Ensure Browse files button STAYS yellow */
+div[data-testid="stFileUploader"] button {
+    background-color: #ffe700 !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    border: 1px solid #ffe700 !important;
+}
+
+
+/* SPECIFIC: Orange Close Button (Targeting by key-based id) */
+button[data-testid="stBaseButton-close_popup"] {
+    background-color: #ff6400 !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    border: 1px solid #ff6400 !important;
+}
+
+/* SPECIFIC: Eye Icon Toggle */
+button[aria-label="Show password text"],
+button[aria-label="Hide password text"],
+button[aria-label*="password"],
+button[aria-label*="Password"],
+button[data-testid*="password"],
+button[data-testid="stSharedComponent"],
+div[data-testid="stTextInput"] button {
+    background-color: #ffe700 !important;
+    color: #000000 !important;
+    border: 1px solid #ffe700 !important;
+}
+
+/* Global Hover Overrides - CLEANED UP */
+
+button[data-testid="stBaseButton-close_popup"]:hover {
+    background-color: #e65a00 !important;
+    border-color: #e65a00 !important;
+}
+
+/* Ensure icons are black */
+button svg,
+[data-testid="stSharedComponent"] svg,
+[aria-label*="password"] svg,
+[aria-label*="Password"] svg {
+    fill: #000000 !important;
+    color: #000000 !important;
+}
+
+/* 7. Success Message Animation */
+.success-message-popup {
+    text-align: center;
+    color: #28a745;
+    font-weight: bold;
+    margin: 15px 0;
+    font-size: 1.9rem !important;
+    animation: fadeOut 3s forwards;
+    pointer-events: none;
+}
+
+@keyframes fadeOut {
+    0% {
+        opacity: 1;
+    }
+
+    66% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+/* 8. Centered Overlay Error */
+.centered-overlay-error {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #ff4b4b !important;
+    color: white !important;
+    padding: 30px 60px !important;
+    border-radius: 15px !important;
+    z-index: 99999 !important;
+    font-weight: bold !important;
+    font-size: 2.2rem !important;
+    text-align: center !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
+    animation: fadeOutError 5s forwards !important;
+    pointer-events: none !important;
+    border: 2px solid #ffffff !important;
+}
+
+@keyframes fadeOutError {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    2% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    80% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* 9. Responsive Password Field */
+.password-container {
+    max-width: 320px;
+    margin: 0 auto;
+}
+
+/* 10. DETERMINISTIC PLAYLIST STYLING (Surgical Marker Technique) */
+/* Targets the button ONLY inside the specific container where we injected the marker */
+/* Use a very specific path to avoid greedily catching navigation/download buttons */
+.quick-select-btns div[data-testid="stVerticalBlock"]:has(> div .playlist-clip-marker) .stButton>button {
+    background-color: #d1d1cb !important;
+    /* light gray #d1d1cb */
+    color: #000000 !important;
+    border: 2px solid #999999 !important;
+    font-weight: normal !important;
+    border-radius: 8px !important;
+    margin-bottom: 8px !important;
+}
+
+.quick-select-btns div[data-testid="stVerticalBlock"]:has(> div .playlist-clip-marker) .stButton>button:hover {
+    background-color: #e0e0da !important;
+    border-color: #777777 !important;
+}
+
+/* Force black text and icons specifically for targeted playlist buttons */
+.quick-select-btns div[data-testid="stVerticalBlock"]:has(> div .playlist-clip-marker) .stButton>button p,
+.quick-select-btns div[data-testid="stVerticalBlock"]:has(> div .playlist-clip-marker) .stButton>button span,
+.quick-select-btns div[data-testid="stVerticalBlock"]:has(> div .playlist-clip-marker) .stButton>button svg {
+    color: #000000 !important;
+    fill: #000000 !important;
+}
+
+/* Active Highlight remains privileged */
+.active-clip {
+    background-color: #9fe788 !important;
+    color: #000000 !important;
+    padding: 12px 20px !important;
+    border-radius: 8px !important;
+    text-align: center !important;
+    font-weight: bold !important;
+    margin-bottom: 8px !important;
+    border: 2px solid #7cb36a !important;
+}
+
+/* 14. Theme Audio Player to Cyan */
+audio {
+    filter: sepia(100%) saturate(300%) hue-rotate(155deg) brightness(1.2);
+}
+
+/* 15. Search Box Styling */
+/* Target the input field specifically inside the sidebar */
+[data-testid="stSidebar"] div[data-testid="stTextInput"] input {
+    border-radius: 7px !important;
+}
+
+/* 16. Hide Default Running Status (The Running Man) */
+div[data-testid="stStatusWidget"] {
+    visibility: hidden !important;
+    display: none !important;
+}
+
+/* 17. Centered Processing Overlay */
+.centered-overlay-processing {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #000000 !important;
+    color: #acf0f1 !important;
+    /* Cyan accent */
+    padding: 40px 60px !important;
+    border-radius: 15px !important;
+    z-index: 100000 !important;
+    font-weight: bold !important;
+    font-size: 2.5rem !important;
+    text-align: center !important;
+    box-shadow: 0 0 50px rgba(172, 240, 241, 0.4) !important;
+    border: 3px solid #acf0f1 !important;
+    min-width: 450px !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.dots-container {
+    display: flex;
+    gap: 8px;
+    margin: 15px 0;
+}
+
+.dot {
+    width: 15px;
+    height: 15px;
+    background-color: #acf0f1;
+    border-radius: 50%;
+    animation: dotPulse 1.4s infinite ease-in-out both;
+}
+
+.dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes dotPulse {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+    }
+
+    40% {
+        transform: scale(1.0);
+    }
+}
+
+/* 18. Centered Complete Overlay (Fading) */
+.centered-overlay-complete {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #28a745 !important;
+    /* Green success */
+    color: white !important;
+    padding: 40px 60px !important;
+    border-radius: 15px !important;
+    z-index: 100001 !important;
+    font-weight: bold !important;
+    font-size: 2.5rem !important;
+    text-align: center !important;
+    box-shadow: 0 0 50px rgba(40, 167, 69, 0.4) !important;
+    border: 3px solid #ffffff !important;
+    min-width: 450px !important;
+    animation: fadeAwayEffect 2.5s forwards ease-in-out !important;
+    pointer-events: none !important;
+}
+
+@keyframes fadeAwayEffect {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+
+    10% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.0);
+    }
+
+    70% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.05);
+    }
+}

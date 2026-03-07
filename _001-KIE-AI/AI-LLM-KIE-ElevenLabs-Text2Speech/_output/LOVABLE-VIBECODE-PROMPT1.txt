@@ -1,0 +1,44 @@
+/// LOVABLE VIBE-CODE STEPS ///
+https://www.youtube.com/watch?v=n-c-cUH97L8 
+
+Step 1. [Idea] Define WHO your ICP is, the urgent and important problem you solve, and how you want your product to solve it. Start with giving Lovable this context.
+-----------------------------------------------------------------------------------
+Act as a senior UI/UX engineer directly trained by Jason Fried and full-stack developer. I want to build a web-based mobile friendly application called [App Name], which [Core Function, e.g., task management dashboard] for [Target Audience].
+
+The design should be [Adjectives: e.g., clean, minimalist, dark-mode focused, playful] and inspired by the designers of [your favorite SaaS or AI product].
+
+Core Features are:
+	1.	[Feature 1]
+	2.	[Feature 2]
+	3.	[Feature 3]
+
+
+
+Step 2. Core Product Loop
+-----------------------------------------------------------------------------------
+I want the user to see a special area where they can upload their P&L (to the left), and a preview of the metrics that will be generated based on their P&L including Revenue Growth, Net Margin, Gross Margin, Net Burn. This should be designed in a way so that the user is encouraged to put in the inputs so they can get their personalized version of the outputs.
+
+Once the inputs have been entered, there should be a button to process the inputs and generate the personalized outputs. There should be a nicely designed waiting indicator so that the user does not get bored while the data is processed.
+
+Once uploaded, use AI to extract and analyze real data from the P&L statement in the PDF file.
+
+Once the data is processed, the user should be able to see their personalized data based on their inputs. The input area can be minimized with a refresh button to put in new data and the outputs and personalized report can be shown so that the user can focus on it.
+
+Step 3. Acquisition
+-------------------------------------------------------------------------------------
+When a user first comes to the application, I want to show a simple welcome modal. It should highlight the name of the application, the key value proposition, key benefits, and capture their first name and email. Once they hit the button to continue, we should then show the main application and show
+
+
+Step 4. Conversion
+-------------------------------------------------------------------------------------
+I want to add an advanced paid feature. I want an AI CFO to analyze the P&L and write a full 6-page Amazon-style memo about the trends, opportunities, strengths, weaknesses and risks around the business. Show beautiful progress indicators so the user doesn’t get bored while the AI analyzes the data and writes the report. I want this memo to be visible in a very beautiful way so that the user can fully understand the story around their uploaded P&L. Make sure paragraphs and bullet points and sections are shown cleanly so it is easy to consume and read.
+
+I want this in-depth report to be a gated feature. So show user affordance about getting the detailed report, when clicked, show a modal with the benefits of the feature, and that the user has to convert to a paid account paying $99/year to view it. When the user hits the button to sign up, take them to the sign up form, collect their name, email and set up their account in the backend and start a 7-day trial (no need to integrate Stripe for now). Log them in, and then show them their analysis.
+
+Once a user is logged in, show a sticky header for the application with relevant links.
+
+Step 5. Referral [VIRAL LOOP]
+-------------------------------------------------------------------------------------
+I want to add two features to add viral loops for the product:
+	1.	Once the user has signed up, give the user the ability to share our product on X or via email and tell others about their great experience. Show this below the header so it is prominent.
+	2.	Add the ability for the user to print just the report so they can share it with their team. Include our branding and credit the report to our application.

@@ -1,0 +1,43 @@
+# Antigravity Skills — git backup config
+
+# ============================================================
+# SECURITY — API keys and secrets (NEVER commit these)
+# ============================================================
+.env
+.env.*
+*.env
+.envrc
+*.key
+*.pem
+secrets.json
+secrets.yaml
+secrets.yml
+
+# Python packages (reinstall with: python3 -m pip install <pkg> --target _libs/)
+_libs/
+
+# Also exclude any nested local libs/ directories (e.g. per-skill libs/)
+**/libs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Temp / test artifacts
+/tmp/
+
+# Ignore Google Cloud SDK installation
+google-cloud-sdk/
+
+__000-DASHBOARD-TEST1/.venv/

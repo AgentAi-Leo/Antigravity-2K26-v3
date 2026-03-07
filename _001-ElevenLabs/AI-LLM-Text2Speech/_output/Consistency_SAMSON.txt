@@ -1,0 +1,106 @@
+Character Sheet Prompts
+
+✅ REVISED PROMPTS
+
+1️⃣ Photorealistic Character Identity Sheet (Using a Reference Image)
+Prompt
+Create a photorealistic multi-angle photographic identity sheet based strictly on the uploaded reference image.
+Match the exact real-world appearance of the person: facial structure, proportions, skin texture, age, asymmetry, and natural imperfections.
+The result must look like real photography of a real human, not a digital character or 3D asset.
+Use a simple, neutral background, similar to a studio or indoor wall.
+The overall feeling should be documentary and natural, not stylized or cinematic.
+
+Layout
+Two horizontal rows, presented as a clean photo contact sheet.
+Top row: four full-body photographs of the same person:
+Facing the camera
+Left-facing profile
+Right-facing profile
+Facing away from the camera
+Bottom row: three close-up photographic portraits:
+Facing the camera
+Left-facing profile
+Right-facing profile
+
+Pose & Body Language
+The subject stands naturally and casually, as a real person would when asked to stand still.
+No exaggerated stance, no rigid pose, no symmetry.
+Subtle, natural weight distribution and relaxed posture.
+Shoulders relaxed, arms resting naturally at the sides.
+
+Consistency & Accuracy
+Maintain strong identity consistency across all images.
+Preserve natural human asymmetry.
+Proportions must remain realistic and consistent without looking mechanically aligned.
+The subject should feel like the same person photographed multiple times, not a replicated model.
+
+Lighting & Camera
+Soft, neutral, real-world lighting (similar to window light or soft studio light).
+No dramatic, cinematic, or stylized lighting.
+Natural shadows with gentle falloff.
+Realistic camera perspective and lens behavior.
+
+Critical constraints
+Not a 3D render
+Not CGI
+Not a game character
+Not stylized
+Not a model turnaround
+
+2️⃣ Photorealistic Character Identity Sheet (No Reference Image)
+Prompt
+Create a photorealistic photographic identity sheet of the following person:
+[INSERT REALISTIC HUMAN DESCRIPTION HERE]
+The subject must look like a real human photographed in the real world.
+Avoid any stylized, animated, or synthetic appearance.
+Use a simple neutral background, similar to an ID or documentary shoot.
+Layout
+Two horizontal rows, presented as a photo contact sheet.
+Top row: four full-body photographs:
+Facing the camera
+Left-facing profile
+Right-facing profile
+Facing away
+Bottom row: three close-up portraits:
+Facing the camera
+Left-facing profile
+Right-facing profile
+
+Pose & Presence
+Natural stance, relaxed posture.
+No posing for presentation.
+Subtle variation in head angle and body balance, like multiple photos taken moments apart.
+
+Lighting & Finish
+Soft, neutral, realistic lighting.
+No stylization, no dramatic contrast.
+The final result should resemble real reference photography, not a character asset.
+
+3️⃣ Changing Wardrobe (Photorealistic Edit)
+Prompt
+Use the same photographic identity sheet as reference.
+Maintain the exact same person: face, body, age, proportions, posture, and expression.
+Change only the clothing to the following:
+
+[INSERT OUTFIT DESCRIPTION OR REFERENCE IMAGE]
+Constraints
+The clothing must behave like real fabric on a real body.
+No change to lighting, camera angle, or body posture.
+The person should still feel like the same individual photographed on the same day, just wearing different clothes.
+No stylization, no CGI look, no character redesign.
+
+🔑 Why this works
+“Photographic identity sheet” replaces “character reference sheet”
+“Contact sheet” replaces “model turnaround”
+Natural posture replaces A-pose
+Identity consistency without mechanical perfection
+Explicit suppression of CG language
+This keeps consistency but restores human realism.
+Next useful steps (your call)
+I can:
+compress these into Nano Banana–optimized short prompts
+create a tight negative prompt block
+build a stress-test prompt to validate realism
+or adapt this for video identity continuity
+
+Say which one you want next.
