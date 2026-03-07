@@ -1787,7 +1787,7 @@ def show_result_popup(text: str):
                 doc.applyButtonClassesInterval = setInterval(() => {
                     doc.querySelectorAll('button').forEach(b => {
                         const t = (b.innerText || "").toUpperCase();
-                        if (t.includes('MERGE ALL')) {
+                        if (t.includes('DOWNLOAD ALL')) {
                             b.classList.add('merge-btn-cyan');
                         }
                         if (t.includes('PREVIOUS') || t.includes('NEXT')) {
@@ -1980,14 +1980,7 @@ def show_result_popup(text: str):
             if selected_skill["basename"] == "Convtr-PlainTxt2PDF" and len(processed_files) > 1: # type: ignore
                 st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
                 
-                # ZIP Options (Include Sources on top)
-                zip_bytes_sourced = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=True)
-                st.download_button(label=f"📦 DOWNLOAD ALL (INCLUDE SOURCES)", data=zip_bytes_sourced, file_name="All_Files_Sourced.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_sourced_top")
-                
-                zip_bytes_clean = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=False)
-                st.download_button(label=f"📦 DOWNLOAD ALL (CLEAN)", data=zip_bytes_clean, file_name="All_Files_Clean.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_clean_top")
-                
-                # Merge Options (Include Sources on top)
+                # 1. Top Buttons: Merge All (Orange/Tertiary)
                 merged_parts_clean = []
                 merged_parts_sourced = []
                 for f in processed_files:
@@ -2006,10 +1999,19 @@ def show_result_popup(text: str):
                 
                 merged_bytes_clean = generate_pdf_from_text("\n".join(merged_parts_clean))
                 merged_bytes_sourced = generate_pdf_from_text("\n".join(merged_parts_sourced))
-                if merged_bytes_sourced:
-                    st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="primary", key="popup_merge_pdf_sourced_top") # type: ignore
                 if merged_bytes_clean:
-                    st.download_button(label=f"📑 MERGE ALL (CLEAN)", data=merged_bytes_clean, file_name="Merged_Document_Clean.pdf", mime="application/pdf", use_container_width=True, type="primary", key="popup_merge_pdf_clean_top") # type: ignore
+                    st.download_button(label=f"📑 MERGE ALL (CLEAN)", data=merged_bytes_clean, file_name="Merged_Document_Clean.pdf", mime="application/pdf", use_container_width=True, type="tertiary", key="popup_merge_pdf_clean_top") # type: ignore
+                if merged_bytes_sourced:
+                    st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="tertiary", key="popup_merge_pdf_sourced_top") # type: ignore
+
+                # 2. Bottom Buttons: ZIP All (Cyan overridden in JS/Tertiary base)
+                zip_bytes_clean = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=False)
+                if zip_bytes_clean:
+                    st.download_button(label=f"📦 DOWNLOAD ALL (CLEAN)", data=zip_bytes_clean, file_name="All_Files_Clean.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_clean_top")
+                
+                zip_bytes_sourced = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=True)
+                if zip_bytes_sourced:
+                    st.download_button(label=f"📦 DOWNLOAD ALL (INCLUDE SOURCES)", data=zip_bytes_sourced, file_name="All_Files_Sourced.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_sourced_top")
 
 
     # --- Bottom Clear Buttons ---
