@@ -44,13 +44,14 @@ def milestone_backup(target_dir: str, remote_url: str, branch: str, message: str
     # 3. Commit
     print("Committing milestone...")
     full_message = f"{MILESTONE_TAG}: {message}"
-    code, _, err = _git(["commit", "-m", full_message], cwd, dry_run)
+    code, out, err = _git(["commit", "-m", full_message], cwd, dry_run)
     # Be lenient: if there's nothing new to commit, we still might want to move the tag.
     if code != 0 and not dry_run:
-        if "nothing to commit" in err or "working tree clean" in err:
+        combined_out = (out + "\n" + err).lower()
+        if "nothing to commit" in combined_out or "working tree clean" in combined_out:
             print("  (Nothing new to commit, proceeding to tagging...)")
         else:
-            print(f"Error: commit failed — {err}")
+            print(f"Error: commit failed — {err or out}")
             sys.exit(1)
 
     # 4. Handle Tag Locally
