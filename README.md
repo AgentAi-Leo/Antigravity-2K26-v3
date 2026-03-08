@@ -1,4 +1,4 @@
-v3 SKILLS - streamlit Created 03.08.26
+v3 SKILLS - streamlit 03.08.26
 
 Adds:
  v1
@@ -9,11 +9,8 @@ Adds:
  v3
     TBD-CONNECT TTS & STT to GSHEETS (as DataBase/Datatore)
 
-
-//////////////////////////////////////////////////////////////
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
-//////////////////////////////////////////////////////////////
 
 AG VERS:
 Antigravity Version: 1.19.6
