@@ -1,6 +1,9 @@
-v2 SKILLS - streamlit
+v3 SKILLS - streamlit
 
-Added GoogleSheet w/CSV Skills
+Adds:
+ v1-Eleven Labs TTS & STT and also KIE using Eleven Labs API
+ v2-GoogleSheets w/CSV Skills
+ v3-TBD
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
