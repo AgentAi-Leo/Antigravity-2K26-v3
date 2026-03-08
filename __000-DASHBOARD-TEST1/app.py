@@ -1596,30 +1596,7 @@ def show_result_popup(text: str):
         is_media = mime_type and (mime_type.startswith("audio/") or mime_type.startswith("video/"))
         is_image = mime_type and mime_type.startswith("image/")
 
-        # --- Quick Select List & Upload (Playlist) ---
-        if is_media:
-            st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
-        else:
-            st.markdown("<h3 class='centered-header'>MY DOCUMENTS</h3>", unsafe_allow_html=True)
-        
-        if get_skill_state("popup_batch_success"):
-            st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
-            set_skill_state("popup_batch_success", False)
-        
-        st.markdown("<div class='quick-select-btns'>", unsafe_allow_html=True)
-        for i, clip in enumerate(processed_files):
-            is_active = (i == get_skill_state("file_index", 0))
-            if is_active:
-                st.markdown(f"<div class='active-clip'>🟢 {clip['name']}</div>", unsafe_allow_html=True)
-            else:
-                with st.container():
-                    st.markdown("<div class='playlist-clip-marker'></div>", unsafe_allow_html=True)
-                    if st.button(f"⚪️ {clip['name']}", key=f"clip_btn_{i}", use_container_width=True):
-                        set_skill_state("file_index", i)
-                        set_skill_state("auto_open_result", True)
-                        st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("---")
+
         
         if is_media:
             st.markdown(f"**Playing {idx + 1} of {len(processed_files)}**: `{current_file['name']}`") # type: ignore
@@ -1660,6 +1637,31 @@ def show_result_popup(text: str):
             else:
                 st.markdown(f"**Viewing {idx + 1} of {len(processed_files)}**: `{display_name}`")
         
+        # --- Quick Select List & Upload (Playlist) ---
+        with st.expander("ALL DOCUMENTS", expanded=False):
+            if is_media:
+                st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
+            else:
+                st.markdown("<h3 class='centered-header'>MY DOCUMENTS</h3>", unsafe_allow_html=True)
+            
+            if get_skill_state("popup_batch_success"):
+                st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
+                set_skill_state("popup_batch_success", False)
+            
+            st.markdown("<div class='quick-select-btns'>", unsafe_allow_html=True)
+            for i, clip in enumerate(processed_files):
+                is_active = (i == get_skill_state("file_index", 0))
+                if is_active:
+                    st.markdown(f"<div class='active-clip'>🟢 {clip['name']}</div>", unsafe_allow_html=True)
+                else:
+                    with st.container():
+                        st.markdown("<div class='playlist-clip-marker'></div>", unsafe_allow_html=True)
+                        if st.button(f"⚪️ {clip['name']}", key=f"clip_btn_{i}", use_container_width=True):
+                            set_skill_state("file_index", i)
+                            set_skill_state("auto_open_result", True)
+                            st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
         # Show navigation buttons if there are multiple files
         if len(processed_files) > 1:
             label_type = "Clip" if is_media else "File"
@@ -1980,38 +1982,41 @@ def show_result_popup(text: str):
             if selected_skill["basename"] == "Convtr-PlainTxt2PDF" and len(processed_files) > 1: # type: ignore
                 st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
                 
-                # 1. Top Buttons: Merge All (Orange/Tertiary)
-                merged_parts_clean = []
-                merged_parts_sourced = []
-                for f in processed_files:
-                    content = f.get("content_preview") or ""
-                    if not content.strip():
-                        transcript = f.get("transcript", "")
-                        if not any(x in transcript for x in ["Successfully", "Generated:", "✅"]):
-                            content = transcript
-                    if content.strip():
-                        merged_parts_clean.append(content)
-                        merged_parts_clean.append("\n")
-                        merged_parts_sourced.append(f"Sourced from: {f['name']}") # Matches orange styling in script
-                        merged_parts_sourced.append("\n\n")
-                        merged_parts_sourced.append(content)
-                        merged_parts_sourced.append("\n")
-                
-                merged_bytes_clean = generate_pdf_from_text("\n".join(merged_parts_clean))
-                merged_bytes_sourced = generate_pdf_from_text("\n".join(merged_parts_sourced))
-                if merged_bytes_clean:
-                    st.download_button(label=f"📑 MERGE ALL (CLEAN)", data=merged_bytes_clean, file_name="Merged_Document_Clean.pdf", mime="application/pdf", use_container_width=True, type="tertiary", key="popup_merge_pdf_clean_top") # type: ignore
-                if merged_bytes_sourced:
-                    st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="tertiary", key="popup_merge_pdf_sourced_top") # type: ignore
+                # Use same column constraints as "DOWNLOAD PDF NOW" to match button size
+                col_b1, col_b2, col_b3 = st.columns([2, 3, 2])
+                with col_b2:
+                    # 1. Top Buttons: ZIP All (Cyan overridden in JS/Tertiary base)
+                    zip_bytes_clean = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=False)
+                    if zip_bytes_clean:
+                        st.download_button(label=f"📦 DOWNLOAD ALL (CLEAN)", data=zip_bytes_clean, file_name="All_Files_Clean.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_clean_top")
+                    
+                    zip_bytes_sourced = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=True)
+                    if zip_bytes_sourced:
+                        st.download_button(label=f"📦 DOWNLOAD ALL (INCLUDE SOURCES)", data=zip_bytes_sourced, file_name="All_Files_Sourced.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_sourced_top")
 
-                # 2. Bottom Buttons: ZIP All (Cyan overridden in JS/Tertiary base)
-                zip_bytes_clean = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=False)
-                if zip_bytes_clean:
-                    st.download_button(label=f"📦 DOWNLOAD ALL (CLEAN)", data=zip_bytes_clean, file_name="All_Files_Clean.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_clean_top")
-                
-                zip_bytes_sourced = generate_zip_of_all_transcripts(processed_files, "PDF (.pdf)", include_sources=True)
-                if zip_bytes_sourced:
-                    st.download_button(label=f"📦 DOWNLOAD ALL (INCLUDE SOURCES)", data=zip_bytes_sourced, file_name="All_Files_Sourced.zip", mime="application/zip", use_container_width=True, type="tertiary", key="popup_dl_all_zip_sourced_top")
+                    # 2. Bottom Buttons: Merge All (Orange/Tertiary)
+                    merged_parts_clean = []
+                    merged_parts_sourced = []
+                    for f in processed_files:
+                        content = f.get("content_preview") or ""
+                        if not content.strip():
+                            transcript = f.get("transcript", "")
+                            if not any(x in transcript for x in ["Successfully", "Generated:", "✅"]):
+                                content = transcript
+                        if content.strip():
+                            merged_parts_clean.append(content)
+                            merged_parts_clean.append("\n")
+                            merged_parts_sourced.append(f"Sourced from: {f['name']}") # Matches orange styling in script
+                            merged_parts_sourced.append("\n\n")
+                            merged_parts_sourced.append(content)
+                            merged_parts_sourced.append("\n")
+                    
+                    merged_bytes_clean = generate_pdf_from_text("\n".join(merged_parts_clean))
+                    merged_bytes_sourced = generate_pdf_from_text("\n".join(merged_parts_sourced))
+                    if merged_bytes_clean:
+                        st.download_button(label=f"📑 MERGE ALL (CLEAN)", data=merged_bytes_clean, file_name="Merged_Document_Clean.pdf", mime="application/pdf", use_container_width=True, type="tertiary", key="popup_merge_pdf_clean_top") # type: ignore
+                    if merged_bytes_sourced:
+                        st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="tertiary", key="popup_merge_pdf_sourced_top") # type: ignore
 
 
     # --- Bottom Clear Buttons ---
