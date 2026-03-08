@@ -1,15 +1,21 @@
-v3 SKILLS - streamlit
+v3 SKILLS - streamlit Created 03.08.26
 
 Adds:
- v1-Eleven Labs TTS & STT and also KIE using Eleven Labs API
- v2-GoogleSheets w/CSV Skills
- v3-TBD
+ v1
+    PDF/TXT File Conversions 
+    Eleven Labs TTS & STT and also KIE using Eleven Labs API
+ v2
+    GoogleSheets w/CSV Skills
+ v3
+    TBD-CONNECT TTS & STT to GSHEETS (as DataBase/Datatore)
 
+
+//////////////////////////////////////////////////////////////
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
+//////////////////////////////////////////////////////////////
 
-Created 03.07.26 
-
+AG VERS:
 Antigravity Version: 1.19.6
 VSCode OSS Version: 1.107.0
 Commit: d2597a5c475647ed306b22de1e39853c7812d07d
