@@ -1,5 +1,7 @@
 v2 SKILLS - streamlit
 
+Added GoogleSheet w/CSV Skills
+
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
 
