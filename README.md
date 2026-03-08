@@ -1,13 +1,13 @@
 v3 SKILLS - streamlit 03.08.26
 
 Adds:
- v1
-    PDF/TXT File Conversions 
-    Eleven Labs TTS & STT and also KIE using Eleven Labs API
- v2
-    GoogleSheets w/CSV Skills
- v3
-    TBD-CONNECT TTS & STT to GSHEETS (as DataBase/Datatore)
+- **v1**
+    - PDF/TXT File Conversions 
+    - Eleven Labs TTS & STT and also KIE using Eleven Labs API
+- **v2**
+    - GoogleSheets w/CSV Skills
+- **v3**
+    - TBD-CONNECT TTS & STT to GSHEETS (as DataBase/Datatore)
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
