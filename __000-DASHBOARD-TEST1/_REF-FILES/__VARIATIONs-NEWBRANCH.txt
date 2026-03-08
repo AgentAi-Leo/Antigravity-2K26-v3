@@ -1,0 +1,10 @@
+git checkout -b vers-A
+
+I've successfully committed the changes along with your README.md edits!
+
+I pushed everything up to the central repository under the branch name vers-A. At the exact same time, I also stamped the commit with the vers-A tag and pushed the tag upstream so it's perfectly locked in.
+
+You're completely synced up. Where should we go from here?
+
+
+git checkout -b vers-B

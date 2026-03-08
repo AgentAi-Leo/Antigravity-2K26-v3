@@ -1,4 +1,5 @@
 import os
+from typing import Any
 import sys
 import yaml  # type: ignore[import-not-found]
 import subprocess
@@ -9,13 +10,15 @@ import tempfile
 import mimetypes
 import time
 import base64
+import shlex
 
 # -----------------------------------------------------------------------------
 # Helper: Get Python Path (prefers virtual environment)
 # -----------------------------------------------------------------------------
 def get_python_cmd():
-    venv_python = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".venv", "bin", "python3")
-    return venv_python if os.path.exists(venv_python) else "python3"
+    # Simplest and most reliable: Use the interpreter currently running the dashboard
+    import sys
+    return sys.executable
 
 # -----------------------------------------------------------------------------
 # Helper: Load External CSS
@@ -825,8 +828,14 @@ def discover_skills():
                 name = skill_dir_name
                     
                 # Look for the main python script
-                scripts = glob.glob(os.path.join(dirpath, "scripts", "*.py"))
-                main_script = scripts[0] if scripts else None
+                # 1. Check if frontmatter specifies a script
+                fm_script = frontmatter.get("script")
+                if fm_script:
+                    main_script = os.path.join(dirpath, fm_script)
+                else:
+                    # 2. Fallback to glob (take the first one)
+                    scripts = glob.glob(os.path.join(dirpath, "scripts", "*.py"))
+                    main_script = scripts[0] if scripts else None
                 
                 skills.append({
                     "id": skill_rel_path,
@@ -1108,13 +1117,21 @@ def check_new_uploads_for_duplicates(file_list):
     set_skill_state("prev_file_counts_dict", curr_counts)
 
 # File uploader OUTSIDE the form so uploads trigger immediately
-
-uploaded_files = st.file_uploader(
-    uploader_label,
-    accept_multiple_files=True,
-    label_visibility="collapsed",
-    type=accepted_types
-)
+skill_args: dict[str, Any] = {}
+if selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
+    uploaded_files = []
+    # Optionally display a nice instruction block instead of the uploader
+    st.info("📊 **Google Sheet Generator**\nConfigure your desired spreadsheet below.")
+else:
+    # Restrict to CSV only if the CSV-to-Sheet skill is selected
+    allowed_types = ["csv"] if selected_skill and selected_skill.get("basename") == "Data-CSV2GoogleSheet" else accepted_types
+    
+    uploaded_files = st.file_uploader(
+        uploader_label,
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+        type=allowed_types
+    )
 
 # --- PDF Restriction Safeguard ---
 if uploaded_files:
@@ -1186,15 +1203,14 @@ if url_input:
     st.info(f"Targeting URL: `{url_input}`")
 
 # --- Specialized Skill Inputs ---
-skill_args = {}
-if selected_skill_id == "AI-LLM-ImageGenerate":
+if selected_skill and selected_skill.get("basename") == "AI-LLM-ImageGenerate":
     skill_args["prompt"] = st.text_area("Image Prompt:", placeholder="A futuristic city with neon lights...", height=100)
     col1, col2 = st.columns(2)
     with col1:
         skill_args["count"] = st.number_input("Number of Images:", min_value=1, max_value=4, value=1)
     with col2:
         skill_args["provider"] = st.selectbox("Provider:", ["gemini", "openai"])
-elif selected_skill_id == "AI-LLM-EmbedText":
+elif selected_skill and selected_skill.get("basename") == "AI-LLM-EmbedText":
     mode = st.radio("Mode:", ["Single Text", "Compare Two Texts"], horizontal=True)
     if mode == "Single Text":
         skill_args["text"] = st.text_area("Text to Embed:", height=150)
@@ -1203,14 +1219,67 @@ elif selected_skill_id == "AI-LLM-EmbedText":
             st.text_input("Text A:"),
             st.text_input("Text B:")
         ]
-elif selected_skill_id == "AI-LLM-RAGQuery":
+elif selected_skill and selected_skill.get("basename") == "AI-LLM-RAGQuery":
     skill_args["query"] = st.text_input("Your Question:", placeholder="What does this document say about...?")
     skill_args["index"] = st.checkbox("Re-index Documents", value=True)
-elif selected_skill_id == "AI-LLM-TranslateText":
+elif selected_skill and selected_skill.get("basename") == "AI-LLM-TranslateText":
     skill_args["to"] = st.text_input("Target Language:", value="Spanish")
     # If no file, show text area
     if not uploaded_files:
         skill_args["text"] = st.text_area("Text to Translate:", height=150)
+elif selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
+    # Proactive check for credentials.json
+    creds_path = os.path.join(str(selected_skill["dir"]), "credentials.json")
+    if not os.path.exists(creds_path):
+        pass
+        
+    st.markdown('<div class="google-sheet-input-wrapper">', unsafe_allow_html=True)
+    skill_args["title"] = st.text_input("Google Sheet Title:", placeholder="e.g. Q3 Sales Tracking")
+    skill_args["fields"] = st.text_input("Column Headers (comma separated):", placeholder="e.g. First Name, Last Name, Email, Phone")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        enter_clicked = st.button("✨ GENERATE GOOGLE SHEET", use_container_width=True, type="primary")
+        if enter_clicked:
+            skill_args["_force_run"] = "True" # type: ignore
+            
+        # JS to Bind Return key (Enter) to the button specifically for these inputs
+        st.markdown(
+            """
+            <script>
+            {
+                const doc = window.parent.document;
+                const bindEnter = () => {
+                    const wrapper = doc.querySelector('.google-sheet-input-wrapper');
+                    if (wrapper) {
+                        const inputs = wrapper.querySelectorAll('input');
+                        inputs.forEach(input => {
+                            if (!input._gsBound) {
+                                input._gsBound = true;
+                                input.addEventListener('keydown', function(ev) {
+                                    if (ev.key === 'Enter') {
+                                        ev.preventDefault();
+                                        const buttons = Array.from(doc.querySelectorAll('button'));
+                                        const genBtn = buttons.find(b => b.innerText.includes('GENERATE GOOGLE SHEET'));
+                                        if (genBtn) genBtn.click();
+                                    }
+                                });
+                            }
+                        });
+                    }
+                };
+                
+                // Try binding immediately and also a few times after UI refreshes
+                bindEnter();
+                setTimeout(bindEnter, 500);
+                setTimeout(bindEnter, 1000);
+            }
+            </script>
+            """,
+            unsafe_allow_html=True
+        )
 
 # --- Manual Text Input Fallback ---
 manual_text = ""
@@ -1221,7 +1290,10 @@ if not uploaded_files and not url_input and not any(skill_args.values()):
         "AI-LLM-RAGQuery", 
         "AI-LLM-TranslateText",
         "AI-LLM-Speech2Text",
-        "AI-LLM-KIE-ElevenLabs-Speech2Text"
+        "AI-LLM-KIE-ElevenLabs-Speech2Text",
+        "Data-GoogleSheet",
+        "Data-CustomGoogleSheet",
+        "Data-CSV2GoogleSheet"
     ]:
         if is_tts_skill:
             with st.form("manual_tts_input_form", clear_on_submit=True):
@@ -1259,13 +1331,15 @@ if not uploaded_files and not url_input and not any(skill_args.values()):
 
 # Handle Execution
 has_special_input = False
-if selected_skill_id == "AI-LLM-ImageGenerate" and skill_args.get("prompt"):
+if selected_skill and selected_skill.get("basename") == "AI-LLM-ImageGenerate" and skill_args.get("prompt"):
     has_special_input = True
-elif selected_skill_id == "AI-LLM-EmbedText" and (skill_args.get("text") or (skill_args.get("compare") and all(skill_args["compare"]))):
+elif selected_skill and selected_skill.get("basename") == "AI-LLM-EmbedText" and (skill_args.get("text") or (skill_args.get("compare") and all(skill_args["compare"]))):
     has_special_input = True
-elif selected_skill_id == "AI-LLM-RAGQuery" and skill_args.get("query"):
+elif selected_skill and selected_skill.get("basename") == "AI-LLM-RAGQuery" and skill_args.get("query"):
     has_special_input = True
-elif selected_skill_id == "AI-LLM-TranslateText" and (skill_args.get("to") and (uploaded_files or skill_args.get("text"))):
+elif selected_skill and selected_skill.get("basename") == "AI-LLM-TranslateText" and (skill_args.get("to") and (uploaded_files or skill_args.get("text"))):
+    has_special_input = True
+elif selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"] and skill_args.get("title") and skill_args.get("fields") and skill_args.get("_force_run") == "True":
     has_special_input = True
 
 should_run = auto_run or (url_input != "") or has_special_input or (manual_text != "" and enter_clicked) or (not is_tts_skill and manual_text != "")
@@ -1274,25 +1348,31 @@ if should_run:
     args_input = ""
     
     # Construct args from specialized inputs
-    if selected_skill_id == "AI-LLM-ImageGenerate":
+    if selected_skill and selected_skill.get("basename") == "AI-LLM-ImageGenerate":
         args_input = f"--prompt {shlex.quote(str(skill_args['prompt']))} --count {skill_args['count']} --provider {str(skill_args['provider'])}"
-    elif selected_skill_id == "AI-LLM-EmbedText":
+    elif selected_skill and selected_skill.get("basename") == "AI-LLM-EmbedText":
         if skill_args.get("text"):
             args_input = f"--text {shlex.quote(str(skill_args['text']))}"
         elif skill_args.get("compare"):
             args_input = f"--compare {shlex.quote(str(skill_args['compare'][0]))} {shlex.quote(str(skill_args['compare'][1]))}"
-    elif selected_skill_id == "AI-LLM-RAGQuery":
+    elif selected_skill and selected_skill.get("basename") == "AI-LLM-RAGQuery":
         args_input = f"--query {shlex.quote(str(skill_args['query']))}"
         if skill_args.get("index"):
             args_input += " --index"
         if uploaded_files:
             # We'll handle files below
             pass
-    elif selected_skill_id == "AI-LLM-TranslateText":
+    elif selected_skill and selected_skill.get("basename") == "AI-LLM-TranslateText":
         args_input = f"--to {shlex.quote(str(skill_args['to']))}"
         if skill_args.get("text"):
             # We'll save this to a temp file below
             pass
+    elif selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
+        fields = [shlex.quote(f.strip()) for f in str(skill_args.get("fields", "")).split(",") if f.strip()]
+        fields_str = " ".join(fields)
+        args_input = f"--title {shlex.quote(str(skill_args.get('title', '')))} --fields {fields_str}"
+    elif selected_skill and selected_skill.get("basename") == "Data-CSV2GoogleSheet":
+        args_input = "--file {FILE_1}"
     
     if url_input:
         args_input = f"--url \"{url_input}\""
@@ -1368,7 +1448,6 @@ if should_run:
                         args_input = base_args_input.replace("{FILE_1}", file_path)
     
     # Parse the arguments string into a list safely avoiding simple split() issues with quotes
-    import shlex
     try:
         parsed_args = shlex.split(args_input)
     except Exception as e:
@@ -1432,23 +1511,55 @@ if should_run:
                 # Check if we should loop (multiple files and {FILE_1} placeholder exists in base_args)
                 # This ensures skills like Convtr-PlainTxt2PDF process ALL uploads.
                 # If base_args_input wasn't created (e.g., text area input), it falls back to single execution.
+                # --- NEW: Streaming Execution Engine ---
+                def run_and_stream(cmd, cwd, env):
+                    """Helper to run a command and stream its output to the UI."""
+                    process = subprocess.Popen(
+                        cmd, cwd=cwd, env=env,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, bufsize=1, universal_newlines=True
+                    )
+                    
+                    full_output: list[str] = []
+                    output_placeholder = st.empty()
+                    
+                    # Read output line by line as it arrives
+                    stdout_pipe = process.stdout
+                    if stdout_pipe:
+                        for line in iter(stdout_pipe.readline, ""):
+                            full_output.append(str(line))
+                            # Update the UI with the latest 20 lines to keep it snappy
+                            output_placeholder.code("".join(full_output[-20:])) # type: ignore
+                    
+                    returncode = process.wait()
+                    final_text = "".join(full_output)
+                    
+                    # Create a compatibility object for the existing result loop
+                    class ProcessResult:
+                        def __init__(self, stdout, stderr, returncode):
+                            self.stdout = stdout
+                            self.stderr = stderr
+                            self.returncode = returncode
+                            
+                    return ProcessResult(final_text, final_text if returncode != 0 else "", returncode)
+
                 base_loop_args = locals().get('base_args_input', args_input)
                 should_loop = len(file_paths) > 1 and "{FILE_1}" in str(base_loop_args)
                 
                 if should_loop:
                     for i, fp in enumerate(file_paths):
-                        # Construct a local command for this specific file using the preserved base_args
                         local_args = str(base_loop_args).replace("{FILE_1}", str(fp))
                         try:
                             local_parsed = shlex.split(local_args)
                             local_cmd = [python_cmd, script_path] + local_parsed
-                            res = subprocess.run(local_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
+                            main_spinner.info(f"⏳ PROCESSING file {i+1}/{len(file_paths)}: `{os.path.basename(fp)}`...")
+                            res = run_and_stream(local_cmd, cwd, run_env)
                             all_execution_results.append((fp, res))
                         except Exception as e:
                             st.error(f"Error processing {fp}: {e}")
                 else:
-                    # Single execution (normal behavior for Image Generation, URL, etc.)
-                    res = subprocess.run(command, cwd=cwd, capture_output=True, text=True, env=run_env)
+                    # Single execution (Google Sheets, Image Gen, etc.)
+                    res = run_and_stream(command, cwd, run_env)
                     all_execution_results.append((file_paths[0] if file_paths else None, res))
 
                 # Now aggregate all results into the playlist
@@ -1494,8 +1605,8 @@ if should_run:
                             usage_details = f"\n\n**Statistics:** {usage_line.split(':', 1)[-1].strip()}"
 
                         last_processed_files.append({
-                            "original_name": os.path.basename(fp) if fp else res_name,
-                            "name": os.path.basename(fp) if fp else res_name,
+                            "original_name": os.path.basename(fp) if fp else (res_name or "Result"),
+                            "name": os.path.basename(fp) if fp else (res_name or "Result"),
                             "bytes": open(fp, "rb").read() if fp and os.path.exists(fp) else (res_bytes or b""),
                             "transcript": (clean_output + usage_details) if clean_output or usage_details else f"✅ Generated: {res_name}",
                             "content_preview": content_preview,
@@ -1548,17 +1659,23 @@ if should_run:
 # -----------------------------------------------------------------------------
 def show_result_popup(text: str):
     load_css() # Ensure styles are applied
-    
     processed_files: list = get_skill_state("last_processed_files", []) # type: ignore
-    idx: int = int(get_skill_state("file_index", 0)) # type: ignore
+    idx: int = int(get_skill_state("file_index", 0))
+    selected_skill_id_raw = st.session_state.get("selected_skill_id", "")
+    is_google_sheet = any(name in str(selected_skill_id_raw) for name in ["Data-GoogleSheet", "Data-CustomGoogleSheet", "Data-CSV2GoogleSheet"])
     is_media = False
     is_image = False
     
-    # 1. Immediate Media Detection (Before any UI guards)
+    # 0. Header & Type Info
+    if is_google_sheet:
+        st.markdown("<h1 class='processed-header'><span style='filter:none;'>📄</span> GOOGLE SHEET GENERATED</h1>", unsafe_allow_html=True)
+    else:
+        st.markdown("<h1 class='processed-header'><span style='filter:none;'>📄</span> PROCESSED RESULT</h1>", unsafe_allow_html=True)
     if processed_files:
         current_file: dict = processed_files[min(idx, len(processed_files)-1)] # type: ignore
         import mimetypes
-        mime_type, _ = mimetypes.guess_type(current_file["name"])
+        file_name = current_file.get("name") or "Result"
+        mime_type, _ = mimetypes.guess_type(file_name)
         is_media = mime_type and (mime_type.startswith("audio/") or mime_type.startswith("video/"))
     
     # Identify which text to display (specific clip transcript or the general output)
@@ -1574,23 +1691,28 @@ def show_result_popup(text: str):
             is_file_success = any(x in file_transcript for x in ["Successfully", "Generated:", "✅"]) or not file_transcript.strip()
             is_global_success = any(x in text for x in ["Successfully", "Generated:", "✅"])
             
-            if content_preview.strip():
-                # If we have a preview, favor it over any success/batch messages
-                if is_file_success or is_global_success:
-                    display_text = content_preview
+            if not is_google_sheet:
+                if content_preview.strip():
+                    # If we have a preview, favor it over any success/batch messages
+                    if is_file_success or is_global_success:
+                        display_text = content_preview
+                    else:
+                        display_text = file_transcript or content_preview
                 else:
-                    display_text = file_transcript or content_preview
+                    # If no preview, only show transcripts if they aren't just success messages
+                    # This prevents "✅ Generated: ..." from appearing when navigating between files
+                    ft_clean = file_transcript if not any(x in file_transcript for x in ["Successfully", "Generated:", "✅"]) else ""
+                    txt_clean = text if not any(x in text for x in ["Successfully", "Generated:", "✅"]) else ""
+                    display_text = ft_clean or txt_clean
             else:
-                # If no preview, only show transcripts if they aren't just success messages
-                # This prevents "✅ Generated: ..." from appearing when navigating between files
-                ft_clean = file_transcript if not any(x in file_transcript for x in ["Successfully", "Generated:", "✅"]) else ""
-                txt_clean = text if not any(x in text for x in ["Successfully", "Generated:", "✅"]) else ""
-                display_text = ft_clean or txt_clean
+                # For Google Sheets, we explicitly NEED the success messages to parse URL/Title
+                display_text = file_transcript or text
             
     if processed_files:
         current_file: dict = processed_files[idx] # type: ignore
         import mimetypes
-        mime_type, _ = mimetypes.guess_type(current_file["name"])
+        file_name = current_file.get("name") or "Result"
+        mime_type, _ = mimetypes.guess_type(file_name)
         
         # Only show the audio player if it's actually an audio/video file
         is_media = mime_type and (mime_type.startswith("audio/") or mime_type.startswith("video/"))
@@ -1632,35 +1754,34 @@ def show_result_popup(text: str):
                 _word_count = len(display_text.split())
                 _char_count = len(display_text)
                 _doc_stats = f"{_word_count:,} words · {_char_count:,} chars"
-            if _doc_stats:
+            if _doc_stats and not is_google_sheet:
                 st.markdown(f"**Viewing {idx + 1} of {len(processed_files)}**: `{display_name}`  &nbsp; <span style='background:#444;color:#ccc;padding:2px 8px;border-radius:6px;font-size:0.8em;'>{_doc_stats}</span>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"**Viewing {idx + 1} of {len(processed_files)}**: `{display_name}`")
-        
         # --- Quick Select List & Upload (Playlist) ---
-        with st.expander("ALL DOCUMENTS", expanded=False):
-            if is_media:
-                st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
-            else:
-                st.markdown("<h3 class='centered-header'>MY DOCUMENTS</h3>", unsafe_allow_html=True)
-            
-            if get_skill_state("popup_batch_success"):
-                st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
-                set_skill_state("popup_batch_success", False)
-            
-            st.markdown("<div class='quick-select-btns'>", unsafe_allow_html=True)
-            for i, clip in enumerate(processed_files):
-                is_active = (i == get_skill_state("file_index", 0))
-                if is_active:
-                    st.markdown(f"<div class='active-clip'>🟢 {clip['name']}</div>", unsafe_allow_html=True)
+        # Hide for Google Sheet skill as it's redundant (always just one "Result")
+        if not is_google_sheet:
+            with st.expander("ALL DOCUMENTS", expanded=False):
+                if is_media:
+                    st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
                 else:
-                    with st.container():
-                        st.markdown("<div class='playlist-clip-marker'></div>", unsafe_allow_html=True)
-                        if st.button(f"⚪️ {clip['name']}", key=f"clip_btn_{i}", use_container_width=True):
-                            set_skill_state("file_index", i)
-                            set_skill_state("auto_open_result", True)
-                            st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("<h3 class='centered-header'>MY DOCUMENTS</h3>", unsafe_allow_html=True)
+                
+                if get_skill_state("popup_batch_success"):
+                    st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
+                    set_skill_state("popup_batch_success", False)
+                
+                st.markdown("<div class='quick-select-btns'>", unsafe_allow_html=True)
+                for i, clip in enumerate(processed_files):
+                    is_active = (i == get_skill_state("file_index", 0))
+                    if is_active:
+                        st.markdown(f"<div class='active-clip'>🟢 {clip['name']}</div>", unsafe_allow_html=True)
+                    else:
+                        with st.container():
+                            st.markdown("<div class='playlist-clip-marker'></div>", unsafe_allow_html=True)
+                            if st.button(f"⚪️ {clip['name']}", key=f"clip_btn_{i}", use_container_width=True):
+                                set_skill_state("file_index", i)
+                                set_skill_state("auto_open_result", True)
+                                st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
 
         # Show navigation buttons if there are multiple files
         if len(processed_files) > 1:
@@ -1882,52 +2003,93 @@ def show_result_popup(text: str):
         display_text = _re.sub(r"\n\n\*\*Statistics:\*\*\s*.+", "", display_text).strip()
     
     # --- COPY button ABOVE preview ---
-    import json
-    js_escaped_text = json.dumps(display_text)
-    st.components.v1.html(
-        f"""
-        <div style="display: flex; justify-content: center; margin-top: 5px;">
-            <button id="copy-btn" style="
-                background-color: #ffe700;
-                color: #000000;
-                border: 1px solid #ffe700;
-                border-radius: 4px;
-                padding: 0px 16px;
-                height: 38px;
-                font-size: 1rem;
-                cursor: pointer;
-                font-family: sans-serif;
-                font-weight: bold;
-                transition: all 0.2s;
-                min-width: 100px;
-                text-transform: uppercase;
-            ">COPY</button>
-        </div>
-        <script>
-        const btn = document.getElementById('copy-btn');
-        btn.onclick = function() {{
-            navigator.clipboard.writeText({js_escaped_text}).then(() => {{
-                btn.innerText = "\u2713 COPIED!";
-                btn.style.backgroundColor = "#8cd775";
-                btn.style.borderColor = "#8cd775";
-                setTimeout(() => {{
-                    btn.innerText = "COPY";
-                    btn.style.backgroundColor = "#ffe700";
-                    btn.style.borderColor = "#ffe700";
-                }}, 2000);
-            }});
-        }};
-        btn.onmouseover = function() {{ this.style.backgroundColor = '#ffd600'; this.style.borderColor = '#ffd600'; }};
-        btn.onmouseout = function() {{
-            if (this.innerText === "COPY") {{
-                this.style.backgroundColor = '#ffe700';
-                this.style.borderColor = '#ffe700';
-            }}
-        }};
-        </script>
-        """,
-        height=60,
-    )
+    if is_google_sheet:
+        import re
+        sheet_title = "Google Sheet"
+        sheet_url = "#"
+        
+        # Strip ANSI escape codes that might be polluting the terminal stream
+        clean_text = _re.sub(r'\x1b\[[0-9;]*[mG]', '', display_text)
+        
+        # Extract title from the script's output "Creating Google Sheet: '...'"
+        title_match = re.search(r"Creating Google Sheet:\s*['\"]?(.*?)['\"]?\s*(?:\.\.\.|\n|$)", clean_text)
+        if title_match:
+            sheet_title = title_match.group(1).strip()
+            
+        # Extract the URL from the script's output
+        url_match = re.search(r"https://docs\.google\.com/spreadsheets/d/[a-zA-Z0-9_-]+[^\s\"']*", clean_text)
+        if url_match:
+            sheet_url = url_match.group(0).strip()
+            
+        st.markdown(
+            f"""
+            <div style="display: flex; justify-content: center; margin-top: 10px; margin-bottom: 20px;">
+                <a href="{sheet_url}" target="_blank" style="
+                    background-color: #1e1e1e;
+                    color: #00FFCC;
+                    border: 2px solid #00FFCC;
+                    border-radius: 6px;
+                    padding: 8px 24px;
+                    font-size: 1.2rem;
+                    font-family: sans-serif;
+                    font-weight: bold;
+                    text-align: center;
+                    text-decoration: none;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                    transition: background-color 0.2s, transform 0.1s;
+                " onmouseover="this.style.backgroundColor='#003322'; this.style.transform='scale(1.02)';" onmouseout="this.style.backgroundColor='#1e1e1e'; this.style.transform='scale(1)';">
+                    📊 {sheet_title}
+                </a>
+            </div>
+            """, unsafe_allow_html=True
+        )
+    else:
+        import json
+        js_escaped_text = json.dumps(display_text)
+        st.components.v1.html(
+            f"""
+            <div style="display: flex; justify-content: center; margin-top: 5px;">
+                <button id="copy-btn" style="
+                    background-color: #ffe700;
+                    color: #000000;
+                    border: 1px solid #ffe700;
+                    border-radius: 4px;
+                    padding: 0px 16px;
+                    height: 38px;
+                    font-size: 1rem;
+                    cursor: pointer;
+                    font-family: sans-serif;
+                    font-weight: bold;
+                    transition: all 0.2s;
+                    min-width: 100px;
+                    text-transform: uppercase;
+                ">COPY</button>
+            </div>
+            <script>
+            const btn = document.getElementById('copy-btn');
+            btn.onclick = function() {{
+                navigator.clipboard.writeText({js_escaped_text}).then(() => {{
+                    btn.innerText = "\u2713 COPIED!";
+                    btn.style.backgroundColor = "#8cd775";
+                    btn.style.borderColor = "#8cd775";
+                    setTimeout(() => {{
+                        btn.innerText = "COPY";
+                        btn.style.backgroundColor = "#ffe700";
+                        btn.style.borderColor = "#ffe700";
+                    }}, 2000);
+                }});
+            }};
+            btn.onmouseover = function() {{ this.style.backgroundColor = '#ffd600'; this.style.borderColor = '#ffd600'; }};
+            btn.onmouseout = function() {{
+                if (this.innerText === "COPY") {{
+                    this.style.backgroundColor = '#ffe700';
+                    this.style.borderColor = '#ffe700';
+                }}
+            }};
+            </script>
+            """,
+            height=60,
+        )
 
     # --- Preview box BELOW copy button ---
     if is_media or is_image:
@@ -1939,7 +2101,7 @@ def show_result_popup(text: str):
             )
     else:
         # Use the same transcript-box styling for document previews
-        if display_text:
+        if display_text and not is_google_sheet:
             safe_text = html.escape(display_text)
             st.markdown(
                 f"<div class='transcript-box'>{safe_text.replace(chr(10), '<br>')}</div>",
@@ -2033,9 +2195,6 @@ def show_result_popup(text: str):
 # --- ALWAYS RENDER RESULT INLINE IF IT EXISTS ---
 last_output = get_skill_state("last_output")
 if last_output:
-    st.markdown("---")
-    st.markdown("<h2 style='text-align: center; color: #eb4c1f;'>📄 PROCESSED RESULT</h2>", unsafe_allow_html=True)
-    
     # We use a container to visually separate the result
     with st.container():
         show_result_popup(last_output)

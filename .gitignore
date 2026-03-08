@@ -41,3 +41,4 @@ __pycache__/
 google-cloud-sdk/
 
 __000-DASHBOARD-TEST1/.venv/
+token.json
