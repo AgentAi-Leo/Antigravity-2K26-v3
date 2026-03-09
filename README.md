@@ -11,7 +11,6 @@ Adds:
     - ElevenLabs Auto-Upload Integration
     - ALL TTS and STT Skills Are Stored on Google Drive
     - Google Sheet Creation and Support Added
-- **v4**
     - Google Drive & Google Sheets Multi-File Upload Support 
     - Google Sheet Columns (Headers) & Cell Width Adjustments
 
