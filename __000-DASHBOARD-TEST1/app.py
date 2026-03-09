@@ -1755,8 +1755,9 @@ if should_run:
                         f.write(uf.getbuffer())
                     file_paths.append(file_path)
                     
-                    processed.add(uf.name + str(uf.size)) # type: ignore
-                    set_skill_state("processed_files", processed)
+                    # We NO LONGER mark this as processed here. We wait until successful execution.
+                    # processed.add(uf.name + str(uf.size)) # type: ignore
+                    # set_skill_state("processed_files", processed)
                     
                     # Replace {FILE_X} placeholder in the args for THIS SPECIFIC file (for single-run fallback)
                     # We only do this for the *first* file because single execution assumes args_input is fully resolved.
@@ -1812,6 +1813,18 @@ if should_run:
                 existing.extend(new_files)
                 set_skill_state("last_processed_files", existing)
                 if new_files:
+                    # Successfully processed these files, safe to add them to the processed duplicate tracker
+                    processed = get_skill_state("processed_files", set())
+                    for f in new_files:
+                        original_name = str(f.get("original_name", ""))
+                        if original_name:
+                            # Match it back to the uploaded_file to get the exact size footprint
+                            for uf in uploaded_files:
+                                if uf.name == original_name:
+                                    processed.add(uf.name + str(uf.size)) # type: ignore
+                                    break
+                    set_skill_state("processed_files", processed)
+                    
                     set_skill_state("file_index", max(0, len(existing) - len(new_files)))
                     set_skill_state("last_output", new_files[0]["transcript"])
                     set_skill_state("auto_open_result", True)
@@ -1940,6 +1953,16 @@ if should_run:
                             "result_bytes": res_bytes,
                             "result_name": res_name
                         })
+                        
+                        # Mark this specific file as successfully processed so it trips the duplicate checker next time
+                        if fp:
+                            processed = get_skill_state("processed_files", set())
+                            original_name = os.path.basename(fp)
+                            for uf in uploaded_files:
+                                if uf.name == original_name:
+                                    processed.add(uf.name + str(uf.size)) # type: ignore
+                                    break
+                            set_skill_state("processed_files", processed)
                     else:
                         # Handle errors (Quota, etc.)
                         if "__ANTIGRAVITY_API_QUOTA_EXCEEDED__" in result.stderr:
