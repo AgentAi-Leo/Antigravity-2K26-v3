@@ -79,54 +79,86 @@ def _sheet_cache_path(title):
     return os.path.join(tempfile.gettempdir(), f"sheet_cache_{safe}.txt")
 
 def get_or_create_sheet(service, title, fields, share_with=None, creds=None):
-    # 1) Check local cache first (avoids Drive API eventual-consistency issues
-    #    where a just-created sheet isn't findable via files.list yet)
-    cache_file = _sheet_cache_path(title)
-    if os.path.exists(cache_file):
-        cached_id = open(cache_file).read().strip()
-        if cached_id:
-            try:
-                # Verify the cached sheet still exists
-                service.spreadsheets().get(spreadsheetId=cached_id, fields='spreadsheetId').execute()
-                return cached_id
-            except Exception:
-                pass  # Cache stale — fall through to search/create
+    _dbg = open('/tmp/sheet_debug.log', 'a')
+    _dbg.write(f"  [get_or_create] Starting for title='{title}'\n")
+    _dbg.flush()
+    try:
+        # 1) Check local cache first (avoids Drive API eventual-consistency issues
+        #    where a just-created sheet isn't findable via files.list yet)
+        cache_file = _sheet_cache_path(title)
+        _dbg.write(f"  [get_or_create] Checking cache: {cache_file}\n")
+        _dbg.flush()
+        
+        if os.path.exists(cache_file):
+            _dbg.write(f"  [get_or_create] Cache exists\n")
+            cached_id = open(cache_file).read().strip()
+            if cached_id:
+                try:
+                    # Verify the cached sheet still exists
+                    service.spreadsheets().get(spreadsheetId=cached_id, fields='spreadsheetId').execute()
+                    _dbg.write(f"  [get_or_create] Cache valid: {cached_id}\n")
+                    return cached_id
+                except Exception as e:
+                    _dbg.write(f"  [get_or_create] Cache stale: {e}\n")
+                    pass  # Cache stale — fall through to search/create
 
-    # 2) Search Drive for an existing sheet with this title
-    query = f"name = '{title}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
-    drive_service = build('drive', 'v3', credentials=creds)
-    results = drive_service.files().list(q=query, fields="files(id, name)").execute()
-    files = results.get('files', [])
-    
-    if files:
-        sheet_id = files[0]['id']
-        # Cache it for subsequent files in the same batch
-        with open(cache_file, 'w') as f:
-            f.write(sheet_id)
-        return sheet_id
-    else:
-        # 3) Create new sheet
-        spreadsheet = {'properties': {'title': title}}
-        ss = service.spreadsheets().create(body=spreadsheet, fields='spreadsheetId').execute()
-        ss_id = ss.get('spreadsheetId')
+        # 2) Search Drive for an existing sheet with this title
+        _dbg.write(f"  [get_or_create] Searching Drive API...\n")
+        _dbg.flush()
         
-        # Add headers
-        if fields:
-            body = {'values': [fields]}
-            service.spreadsheets().values().update(
-                spreadsheetId=ss_id, range='A1',
-                valueInputOption='RAW', body=body).execute()
+        query = f"name = '{title}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
+        drive_service = build('drive', 'v3', credentials=creds)
+        results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+        files = results.get('files', [])
         
-        # Share if requested
-        if share_with:
-            permission = {'type': 'user', 'role': 'writer', 'emailAddress': share_with}
-            drive_service.permissions().create(fileId=ss_id, body=permission).execute()
+        _dbg.write(f"  [get_or_create] Drive search found {len(files)} matches\n")
+        _dbg.flush()
         
-        # Cache the new sheet ID so the next file in the batch finds it instantly
-        with open(cache_file, 'w') as f:
-            f.write(ss_id)
+        if files:
+            sheet_id = files[0]['id']
+            # Cache it for subsequent files in the same batch
+            with open(cache_file, 'w') as f:
+                f.write(sheet_id)
+            return sheet_id
+        else:
+            # 3) Create new sheet
+            _dbg.write(f"  [get_or_create] Creating new sheet...\n")
+            _dbg.flush()
             
-        return ss_id
+            spreadsheet = {'properties': {'title': title}}
+            ss = service.spreadsheets().create(body=spreadsheet, fields='spreadsheetId').execute()
+            ss_id = ss.get('spreadsheetId')
+            
+            _dbg.write(f"  [get_or_create] Created ss_id: {ss_id}\n")
+            _dbg.flush()
+            
+            # Add headers
+            if fields:
+                _dbg.write(f"  [get_or_create] Adding headers...\n")
+                body = {'values': [fields]}
+                service.spreadsheets().values().update(
+                    spreadsheetId=ss_id, range='A1',
+                    valueInputOption='RAW', body=body).execute()
+            
+            # Share if requested
+            if share_with:
+                _dbg.write(f"  [get_or_create] Sharing with {share_with}...\n")
+                permission = {'type': 'user', 'role': 'writer', 'emailAddress': share_with}
+                drive_service.permissions().create(fileId=ss_id, body=permission).execute()
+            
+            # Cache the new sheet ID so the next file in the batch finds it instantly
+            _dbg.write(f"  [get_or_create] Caching new ID to {cache_file}...\n")
+            with open(cache_file, 'w') as f:
+                f.write(ss_id)
+                
+            return ss_id
+    except Exception as e:
+        _dbg.write(f"  [get_or_create] ❌ CRASH: {str(e)}\n")
+        import traceback
+        _dbg.write(traceback.format_exc())
+        raise
+    finally:
+        _dbg.close()
 
 def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", batch_seq="", batch_summary=False):
     _dbg = open('/tmp/sheet_debug.log', 'a')
