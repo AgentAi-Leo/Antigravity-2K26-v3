@@ -184,6 +184,11 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             timestamp,
         ] + row_values
         
+        # Ensure row has at least 10 columns (A through J).
+        # Cols I & J (indices 8 & 9) are usually Notes-1 and Notes-2.
+        while len(row) < 10:
+            row.append("Add Note Here!")
+        
         body = {'values': [row]}
         # Use USER_ENTERED so =HYPERLINK formulas are interpreted
         # Retry once if append fails (first file after sheet creation can be flaky)
@@ -276,7 +281,8 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             for i in range(start, min(end, len(col_widths))):
                 if i == skip_col:
                     continue
-                pad = 50 if i in (8, 9) else 20  # Extra width for Notes columns
+                # Increase padding for Notes columns (indices 8, 9) by an extra 25px (was 50, now 75)
+                pad = 75 if i in (8, 9) else 20
                 pad_requests.append({
                     'updateDimensionProperties': {
                         'range': {
