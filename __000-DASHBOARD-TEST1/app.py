@@ -184,26 +184,26 @@ def trigger_processing_overlay():
     placeholder = st.empty()
     with placeholder.container():
         st.markdown("""
-            <div class='centered-overlay-processing' style='pointer-events: auto; padding-bottom: 20px;'>
-                <div style='line-height: 1.1; margin-bottom: 10px;'>
-                    PROCESSING!<br>
-                    <span style='font-size: 0.6em; opacity: 0.8; font-weight: normal;'>Please stand by!</span>
-                </div>
-                <div class='dots-container'>
-                    <div class='dot'></div>
-                    <div class='dot'></div>
-                    <div class='dot'></div>
-                </div>
-                <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 10px; margin-bottom: 20px;'>
-                    Depending on file size: Could Take Up to 5 mins.
+            <div id='processing-overlay-container' style='position: relative; width: 100%; display: flex; justify-content: center;'>
+                <div class='centered-overlay-processing' style='pointer-events: auto; padding-bottom: 60px;'>
+                    <div style='line-height: 1.1; margin-bottom: 10px;'>
+                        PROCESSING!<br>
+                        <span style='font-size: 0.6em; opacity: 0.8; font-weight: normal;'>Please stand by!</span>
+                    </div>
+                    <div class='dots-container'>
+                        <div class='dot'></div>
+                        <div class='dot'></div>
+                        <div class='dot'></div>
+                    </div>
+                    <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 10px; margin-bottom: 20px;'>
+                        Depending on file size: Could Take Up to 5 mins.
+                    </div>
                 </div>
             </div>
             <style>
-                /* Elevate the stButton above the overlay background */
-                /* Streamlit renders buttons inside several wrapper divs. 
-                   We need to target the top-level button container *within* this st.empty() block */
+                /* Elevate the stButton above the overlay background and constrain it to the box */
                 div[data-testid="stVerticalBlock"] > div:has(button) {
-                    position: fixed !important;
+                    position: absolute !important;
                     bottom: 20px !important;
                     right: 20px !important;
                     top: auto !important;
@@ -212,6 +212,17 @@ def trigger_processing_overlay():
                     z-index: 999999 !important;
                     display: flex !important;
                     justify-content: center !important;
+                    width: auto !important;
+                }
+                /* Need to ensure the container holding both the overlay and button creates a positioning context */
+                div[data-testid="stVerticalBlock"]:has(.centered-overlay-processing) {
+                    position: fixed !important;
+                    top: 50% !important;
+                    left: 50% !important;
+                    transform: translate(-50%, -50%) !important;
+                    z-index: 999995 !important;
+                    width: 400px !important;
+                    border-radius: 12px;
                 }
                 button[kind="secondary"] {
                     background-color: rgba(200, 30, 30, 0.8) !important;
