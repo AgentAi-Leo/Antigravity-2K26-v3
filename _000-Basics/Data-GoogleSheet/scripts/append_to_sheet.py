@@ -15,7 +15,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive.file'
 ]
 
-HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcription", "Preview", "Copy Link"]
+HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcription", "Preview", "Copy Link", "Notes-1", "Notes-2"]
 
 def get_secret(project_id, secret_id):
     try:
@@ -164,7 +164,7 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
     try:
         resize_requests = []
         # Auto-resize columns A-E (indices 0-4) and G-H (indices 6-7)
-        for col_range in [(0, 5), (6, 8)]:
+        for col_range in [(0, 5), (6, 10)]:
             resize_requests.append({
                 'autoResizeDimensions': {
                     'dimensions': {
