@@ -15,7 +15,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive.file'
 ]
 
-HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcript/Text", "Preview", "Quick Save"]
+HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcript/Text", "Preview", "Copy Link"]
 
 def get_secret(project_id, secret_id):
     try:
@@ -132,16 +132,17 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
         drive_link = values[3] if len(values) > 3 else ""
         if drive_link and drive_link.startswith("http"):
             open_formula = f'=HYPERLINK("{drive_link}","📁 Open")'
-            # Build Save link: use /view with download action so user controls the save
+            # Quick Save: plain URL (not HYPERLINK) so user can copy-paste into any browser.
+            # Google Sheets wraps HYPERLINK clicks through google.com/url redirect which
+            # bypasses Chrome's save dialog and downloads to inaccessible cache.
             import re
             _fid_match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', drive_link) or re.search(r'[?&]id=([a-zA-Z0-9_-]+)', drive_link)
             if _fid_match:
                 _file_id = _fid_match.group(1)
-                save_url = f"https://drive.usercontent.google.com/download?id={_file_id}&export=download&confirm=t"
+                save_url = f"https://drive.google.com/file/d/{_file_id}/view"
             else:
                 save_url = drive_link
-            save_formula = f'=HYPERLINK("{save_url}","⬇️ Save")'
-            row_values = list(values[:3]) + [open_formula, save_formula]
+            row_values = list(values[:3]) + [open_formula, save_url]
         else:
             row_values = list(values)
         
