@@ -1419,14 +1419,12 @@ if uploaded_files and not is_audio_skill and not is_tts_skill:
     # Server-side filter: remove any .pdf files that slipped through (e.g. from prior session)
     uploaded_files = [f for f in uploaded_files if not f.name.lower().endswith('.pdf')]
 
-if uploaded_files:
-    # Remove duplicates immediately from the runtime execution queue
-    uploaded_files = check_new_uploads_for_duplicates(uploaded_files)
+# ALWAYS check for duplicates to synchronize state when the user clears the widget
+uploaded_files = check_new_uploads_for_duplicates(uploaded_files if uploaded_files else [])
         
-    # Re-evaluate truthiness since `uploaded_files` could now be empty
-    if uploaded_files:
-        file_names = ", ".join([f.name for f in uploaded_files])
-        st.success(f"📎 {len(uploaded_files)} file(s) uploaded: **{file_names}**")
+if uploaded_files:
+    file_names = ", ".join([f.name for f in uploaded_files])
+    st.success(f"📎 {len(uploaded_files)} file(s) uploaded: **{file_names}**")
 
 # Detect if a NEW file was just uploaded (auto-run trigger)
 # Auto-run for ALL files over riding the previous logic
