@@ -219,8 +219,8 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                 row_idx = int(match.group(2)) - 1
                 for col_idx, cell_value in enumerate(row):
                     val_str = str(cell_value)
-                    # Add note to cells with >10 chars (skip formulas like =HYPERLINK and skip BatchID/Timestamp/Copy Link/Notes columns 0, 2, 7, 8, 9)
-                    if len(val_str) > 10 and not val_str.startswith('=') and col_idx not in (0, 2, 7, 8, 9):
+                    # Add note to cells with >1 chars (skip formulas like =HYPERLINK and skip BatchID/Timestamp/Copy Link/Notes columns 0, 2, 7, 8, 9)
+                    if len(val_str) > 1 and not val_str.startswith('=') and col_idx not in (0, 2, 7, 8, 9):
                         resize_requests.append({
                             'updateCells': {
                                 'range': {
