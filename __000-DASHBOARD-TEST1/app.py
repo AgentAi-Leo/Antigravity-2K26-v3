@@ -1292,7 +1292,7 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
             badge_html += f'<a href="{drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
         if _has_sheet_id:
             sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            badge_html += f'<a href="{sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheets</a>'
+            badge_html += f'<a href="{sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheet</a>'
         badge_html += '</div>'
         st.markdown(badge_html, unsafe_allow_html=True)
 if selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
@@ -1880,7 +1880,7 @@ def show_result_popup(text: str):
             _badge_html += f'<a href="{_drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
         if _popup_has_sheet:
             _sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            _badge_html += f'<a href="{_sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheets</a>'
+            _badge_html += f'<a href="{_sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheet</a>'
         _badge_html += '</div>'
         st.markdown(_badge_html, unsafe_allow_html=True)
 
