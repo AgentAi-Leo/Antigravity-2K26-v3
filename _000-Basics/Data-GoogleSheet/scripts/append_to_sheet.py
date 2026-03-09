@@ -128,9 +128,19 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
     else:
         # Normal data row: values = [Original File, Status, Transcript/Text, Drive Link]
         # Build the Drive Link as a clickable HYPERLINK formula if it looks like a URL
+        # Use direct download URL to bypass the Google Drive preview UI
+        # (preview loads fonts.googleapis.com which hangs in Firefox-based browsers like Zen)
         drive_link = values[3] if len(values) > 3 else ""
         if drive_link and drive_link.startswith("http"):
-            hyperlink_formula = f'=HYPERLINK("{drive_link}","📁 Open")'
+            # Extract file ID from URLs like /file/d/{ID}/view or /open?id={ID}
+            import re
+            _fid_match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', drive_link) or re.search(r'[?&]id=([a-zA-Z0-9_-]+)', drive_link)
+            if _fid_match:
+                _file_id = _fid_match.group(1)
+                download_url = f"https://drive.google.com/uc?export=download&id={_file_id}"
+            else:
+                download_url = drive_link  # fallback to original
+            hyperlink_formula = f'=HYPERLINK("{download_url}","⬇️ Download")'
             row_values = list(values[:3]) + [hyperlink_formula]
         else:
             row_values = list(values)
