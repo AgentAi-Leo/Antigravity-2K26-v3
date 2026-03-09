@@ -184,46 +184,47 @@ def trigger_processing_overlay():
     placeholder = st.empty()
     with placeholder.container():
         st.markdown("""
-            <div id='processing-overlay-container' style='position: relative; width: 100%; display: flex; justify-content: center;'>
-                <div class='centered-overlay-processing' style='pointer-events: auto; padding-bottom: 60px;'>
-                    <div style='line-height: 1.1; margin-bottom: 10px;'>
-                        PROCESSING!<br>
-                        <span style='font-size: 0.6em; opacity: 0.8; font-weight: normal;'>Please stand by!</span>
-                    </div>
-                    <div class='dots-container'>
-                        <div class='dot'></div>
-                        <div class='dot'></div>
-                        <div class='dot'></div>
-                    </div>
-                    <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 10px; margin-bottom: 20px;'>
-                        Depending on file size: Could Take Up to 5 mins.
-                    </div>
+            <div class='processing-marker' style='pointer-events: auto; padding: 20px; text-align: center;'>
+                <div style='line-height: 1.1; margin-bottom: 10px; font-size: 2rem; font-weight: bold; color: #a8ffdb; font-family: sans-serif;'>
+                    PROCESSING!<br>
+                    <span style='font-size: 1.2rem; opacity: 0.8; font-weight: normal; color: #88d4b4;'>Please stand by!</span>
+                </div>
+                <div class='dots-container'>
+                    <div class='dot'></div>
+                    <div class='dot'></div>
+                    <div class='dot'></div>
+                </div>
+                <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 15px; margin-bottom: 30px;'>
+                    Depending on file size: Could Take Up to 5 mins.
                 </div>
             </div>
             <style>
-                /* Elevate the stButton above the overlay background and constrain it to the box */
-                div[data-testid="stVerticalBlock"] > div:has(button) {
-                    position: absolute !important;
-                    bottom: 20px !important;
-                    right: 20px !important;
-                    top: auto !important;
-                    left: auto !important;
-                    transform: none !important;
-                    z-index: 999999 !important;
-                    display: flex !important;
-                    justify-content: center !important;
-                    width: auto !important;
-                }
-                /* Need to ensure the container holding both the overlay and button creates a positioning context */
-                div[data-testid="stVerticalBlock"]:has(.centered-overlay-processing) {
+                /* Style the actual parent Streamlit container to act as the dark modal box */
+                div[data-testid="stVerticalBlock"]:has(.processing-marker) {
                     position: fixed !important;
                     top: 50% !important;
                     left: 50% !important;
                     transform: translate(-50%, -50%) !important;
                     z-index: 999995 !important;
-                    width: 400px !important;
-                    border-radius: 12px;
+                    width: 450px !important;
+                    background-color: rgba(10, 10, 15, 0.95) !important;
+                    border: 2px solid rgba(168, 255, 219, 0.3) !important;
+                    border-radius: 12px !important;
+                    box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), 0 0 15px rgba(168, 255, 219, 0.1) !important;
+                    backdrop-filter: blur(10px) !important;
+                    padding: 0 !important;
+                    overflow: visible !important;
                 }
+                
+                /* Target the child container holding the st.button */
+                div[data-testid="stVerticalBlock"]:has(.processing-marker) > div:last-child {
+                    position: absolute !important;
+                    bottom: 15px !important;
+                    right: 15px !important;
+                    width: auto !important;
+                    z-index: 999999 !important;
+                }
+                
                 button[kind="secondary"] {
                     background-color: rgba(200, 30, 30, 0.8) !important;
                     color: rgba(255, 255, 255, 0.9) !important;
