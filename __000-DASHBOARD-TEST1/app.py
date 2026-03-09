@@ -1362,8 +1362,7 @@ if uploaded_files and not is_audio_skill and not is_tts_skill:
 
 if uploaded_files:
     # Remove duplicates immediately from the runtime execution queue
-    if not get_skill_state("auto_open_result", False):
-        uploaded_files = check_new_uploads_for_duplicates(uploaded_files)
+    uploaded_files = check_new_uploads_for_duplicates(uploaded_files)
         
     # Re-evaluate truthiness since `uploaded_files` could now be empty
     if uploaded_files:
