@@ -217,7 +217,7 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                 }
             })
         # Set Transcription (col F = index 5) to fixed 250px width
-        resize_requests.append({
+        resize_requests.append({  # type: ignore[arg-type]
             'updateDimensionProperties': {
                 'range': {
                     'sheetId': 0,
@@ -256,7 +256,7 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                             'startIndex': i,
                             'endIndex': i + 1
                         },
-                        'properties': {'pixelSize': col_widths[i] + pad},
+                        'properties': {'pixelSize': col_widths[i] + pad},  # type: ignore[operator]
                         'fields': 'pixelSize'
                     }
                 })
