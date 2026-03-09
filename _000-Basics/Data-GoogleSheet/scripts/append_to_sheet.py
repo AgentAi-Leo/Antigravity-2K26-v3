@@ -221,8 +221,8 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                 row_idx = int(match.group(2)) - 1
                 for col_idx, cell_value in enumerate(row):
                     val_str = str(cell_value)
-                    # Add note to cells with >20 chars (skip formulas like =HYPERLINK)
-                    if len(val_str) > 20 and not val_str.startswith('='):
+                    # Add note to cells with >10 chars (skip formulas like =HYPERLINK)
+                    if len(val_str) > 10 and not val_str.startswith('='):
                         resize_requests.append({
                             'updateCells': {
                                 'range': {
