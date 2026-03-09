@@ -1268,6 +1268,24 @@ def check_new_uploads_for_duplicates(file_list):
 # File uploader OUTSIDE the form so uploads trigger immediately
 skill_args: dict[str, Any] = {}
 
+# --- Helper: Open URL in user-preferred browser ---
+def _open_url_in_browser(url: str, browser: str = "Default Browser"):
+    """Launch *url* in the chosen browser via macOS `open` command."""
+    import subprocess as _sp
+    if browser == "Default Browser":
+        _sp.Popen(["open", url])
+    elif browser == "Other…":
+        # Fallback to default if no custom set
+        custom = st.session_state.get("_custom_browser_app", "")
+        if custom:
+            _sp.Popen(["open", "-a", custom, url])
+        else:
+            _sp.Popen(["open", url])
+    else:
+        _sp.Popen(["open", "-a", browser, url])
+
+_BROWSER_CHOICES = ["Default Browser", "Brave Browser", "Google Chrome", "Firefox", "Microsoft Edge", "Safari", "Other…"]
+
 # --- Specialized Skill Inputs (Part 1: Above Uploader) ---
 if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "AI-LLM-KIE-ElevenLabs-Speech2Text", "AI-LLM-Text2Speech", "AI-LLM-KIE-ElevenLabs-Text2Speech"]:
     col1, col2 = st.columns(2)
@@ -1277,24 +1295,47 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
         skill_args["google_sheet"] = st.text_input("Google Sheet Name (Optional):", placeholder="e.g. Transcription Database")
     
     default_email = st.session_state.get("GCP_USER_EMAIL", os.environ.get("GCP_USER_EMAIL", ""))
-    skill_args["share_with"] = st.text_input("User Email for Auto-Sharing (Optional):", 
-                                            value=default_email,
-                                            type="password",
-                                            placeholder="e.g. user@gmail.com")
+    _share_col, _browser_col = st.columns([3, 1])
+    with _share_col:
+        skill_args["share_with"] = st.text_input("User Email for Auto-Sharing (Optional):", 
+                                                value=default_email,
+                                                type="password",
+                                                placeholder="e.g. user@gmail.com")
+    with _browser_col:
+        _sel_browser = st.selectbox("Open links with:", _BROWSER_CHOICES,
+                                    index=_BROWSER_CHOICES.index(st.session_state.get("_preferred_browser", "Default Browser")),
+                                    key="_preferred_browser")
+        if _sel_browser == "Other…":
+            st.text_input("App name:", key="_custom_browser_app", placeholder="e.g. Zen Browser")
     # Show direct-link badges ONLY after a successful upload has stored real IDs
     _has_folder_id = bool(st.session_state.get("_google_folder_id"))
     _has_sheet_id = bool(st.session_state.get("_google_sheet_id"))
     if _has_folder_id or _has_sheet_id:
-        badge_html = '<style>@keyframes badgeFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>'
-        badge_html += '<div style="display:flex;gap:10px;margin:8px 0 4px 0;animation:badgeFadeIn 1s ease-out;">'
+        # Inject CSS to style st.button as pill badges
+        st.markdown('''<style>
+            div[data-testid="stHorizontalBlock"] button[kind="secondary"][data-testid*="badge_drive"],
+            div[data-testid="stHorizontalBlock"] button[kind="primary"][data-testid*="badge_drive"] {
+                background:#1a73e8!important;color:#fff!important;border:none!important;
+                border-radius:20px!important;padding:5px 14px!important;font-size:13px!important;font-weight:600!important;
+            }
+            div[data-testid="stHorizontalBlock"] button[kind="secondary"][data-testid*="badge_sheet"],
+            div[data-testid="stHorizontalBlock"] button[kind="primary"][data-testid*="badge_sheet"] {
+                background:#0f9d58!important;color:#fff!important;border:none!important;
+                border-radius:20px!important;padding:5px 14px!important;font-size:13px!important;font-weight:600!important;
+            }
+        </style>''', unsafe_allow_html=True)
+        _bcol1, _bcol2, _bcol_spacer = st.columns([1, 1, 4])
+        _chosen_browser = st.session_state.get("_preferred_browser", "Default Browser")
         if _has_folder_id:
             drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
-            badge_html += f'<a href="{drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
+            with _bcol1:
+                if st.button("📁 Google Drive", key="badge_drive_main"):
+                    _open_url_in_browser(drive_url, _chosen_browser)
         if _has_sheet_id:
             sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            badge_html += f'<a href="{sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheet</a>'
-        badge_html += '</div>'
-        st.markdown(badge_html, unsafe_allow_html=True)
+            with _bcol2:
+                if st.button("📊 Google Sheet", key="badge_sheet_main"):
+                    _open_url_in_browser(sheet_url, _chosen_browser)
 if selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
     uploaded_files = []
     # Optionally display a nice instruction block instead of the uploader
@@ -1873,16 +1914,30 @@ def show_result_popup(text: str):
     _popup_has_folder = bool(st.session_state.get("_google_folder_id"))
     _popup_has_sheet = bool(st.session_state.get("_google_sheet_id"))
     if _popup_has_folder or _popup_has_sheet:
-        _badge_html = '<style>@keyframes badgeFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>'
-        _badge_html += '<div style="display:flex;gap:10px;margin:8px 0 12px 0;animation:badgeFadeIn 1s ease-out;">'
+        st.markdown('''<style>
+            div[data-testid="stHorizontalBlock"] button[kind="secondary"][data-testid*="badge_drive"],
+            div[data-testid="stHorizontalBlock"] button[kind="primary"][data-testid*="badge_drive"] {
+                background:#1a73e8!important;color:#fff!important;border:none!important;
+                border-radius:20px!important;padding:5px 14px!important;font-size:13px!important;font-weight:600!important;
+            }
+            div[data-testid="stHorizontalBlock"] button[kind="secondary"][data-testid*="badge_sheet"],
+            div[data-testid="stHorizontalBlock"] button[kind="primary"][data-testid*="badge_sheet"] {
+                background:#0f9d58!important;color:#fff!important;border:none!important;
+                border-radius:20px!important;padding:5px 14px!important;font-size:13px!important;font-weight:600!important;
+            }
+        </style>''', unsafe_allow_html=True)
+        _pcol1, _pcol2, _pcol_spacer = st.columns([1, 1, 4])
+        _chosen_browser = st.session_state.get("_preferred_browser", "Default Browser")
         if _popup_has_folder:
             _drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
-            _badge_html += f'<a href="{_drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
+            with _pcol1:
+                if st.button("📁 Google Drive", key="badge_drive_popup"):
+                    _open_url_in_browser(_drive_url, _chosen_browser)
         if _popup_has_sheet:
             _sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            _badge_html += f'<a href="{_sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheet</a>'
-        _badge_html += '</div>'
-        st.markdown(_badge_html, unsafe_allow_html=True)
+            with _pcol2:
+                if st.button("📊 Google Sheet", key="badge_sheet_popup"):
+                    _open_url_in_browser(_sheet_url, _chosen_browser)
 
     if processed_files:
         current_file: dict = processed_files[min(idx, len(processed_files)-1)] # type: ignore
