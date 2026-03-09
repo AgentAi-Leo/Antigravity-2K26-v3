@@ -7,7 +7,9 @@ Adds:
 - **v2**
     - GoogleSheets w/CSV Skills
 - **v3**
-    - TBD-CONNECT TTS & STT to GSHEETS (as DataBase/Datatore)
+    - Google Drive Cloud Storage (Categorized)
+    - ElevenLabs Auto-Upload Integration
+    - TBD-CONNECT Live Sheets Database
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json

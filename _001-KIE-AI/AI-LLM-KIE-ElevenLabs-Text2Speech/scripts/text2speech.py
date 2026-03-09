@@ -67,6 +67,9 @@ def main():
     group.add_argument("--input", type=str, help="Path to a .txt file containing the text")
     parser.add_argument("--output", type=str, help="Path to save the generated .mp3 file")
     parser.add_argument("--voice_id", type=str, default="Rachel", help="ElevenLabs Voice Name (e.g. 'Rachel', 'Adam - Dominant, Firm')")
+    parser.add_argument("--drive-folder", type=str, help="Optional: Google Drive folder path to upload the resulting audio")
+    parser.add_argument("--google-sheet", type=str, help="Optional: Google Sheet name to log results")
+    parser.add_argument("--share-with",   type=str, help="Optional: Email to share Drive files and Sheets with")
     
     args = parser.parse_args()
 
@@ -236,6 +239,69 @@ def main():
                                 chars: int = len(content_str)
                                 sys.stdout.write(f"Saved: {output_path}\n")
                                 sys.stdout.write(f"Usage: {words} words, {chars} characters\n")
+
+                                # Optional: Auto-upload to Google Drive
+                                drive_link = ""
+                                if args.drive_folder:
+                                    sys.stderr.write(f"Auto-uploading to Google Drive folder: '{args.drive_folder}'...\n")
+                                    try:
+                                        import subprocess
+                                        current_dir = os.path.dirname(os.path.abspath(__file__))
+                                        drive_script = os.path.abspath(os.path.join(current_dir, "..", "..", "..", "_000-Basics", "Data-GoogleDrive", "scripts", "upload_to_drive.py"))
+                                        if not os.path.exists(drive_script):
+                                            # Fallback if __file__ relativity is broken by Streamlit execution
+                                            drive_script = os.path.join(os.getcwd(), "_000-Basics", "Data-GoogleDrive", "scripts", "upload_to_drive.py")
+                                        
+                                        if os.path.exists(drive_script):
+                                            cmd = [sys.executable, drive_script, "--file", output_path, "--folder", args.drive_folder]
+                                            if args.share_with:
+                                                cmd.extend(["--share-with", args.share_with])
+                                                
+                                            res = subprocess.run(cmd, capture_output=True, text=True)
+                                            if res.returncode == 0:
+                                                sys.stdout.write(res.stdout + "\n")
+                                                # Extract link for sheet logging (upload_to_drive prints this to stderr)
+                                                for line in res.stderr.splitlines():
+                                                    if "Link:" in line:
+                                                        drive_link = line.split("Link:", 1)[1].strip()
+                                                        break
+                                            else:
+                                                sys.stderr.write(f"Warning: Drive upload failed: {res.stderr}\n")
+                                        else:
+                                            sys.stderr.write(f"Warning: Could not find upload_to_drive.py at {drive_script}\n")
+                                    except Exception as drive_err:
+                                        sys.stderr.write(f"Warning: Unexpected error during Drive upload: {drive_err}\n")
+
+                                # Optional: Log to Google Sheet
+                                if args.google_sheet:
+                                    sys.stderr.write(f"Logging results to Google Sheet: '{args.google_sheet}'...\n")
+                                    try:
+                                        sheet_script = os.path.abspath(os.path.join(current_dir, "..", "..", "..", "_000-Basics", "Data-GoogleSheet", "scripts", "append_to_sheet.py"))
+                                        if not os.path.exists(sheet_script):
+                                             sheet_script = os.path.join(os.getcwd(), "_000-Basics", "Data-GoogleSheet", "scripts", "append_to_sheet.py")
+                                             
+                                        if os.path.exists(sheet_script):
+                                            status = "Success"
+                                            # Truncate text for sheet if very long
+                                            res_str = str(content)
+                                            if len(res_str) > 5000:
+                                                preview = res_str[:5000] + "..."  # type: ignore
+                                            else:
+                                                preview = res_str
+                                            original_file = os.path.basename(args.input) if args.input else "Manual Text"
+                                            
+                                            cmd = [sys.executable, sheet_script, "--title", args.google_sheet, "--data", original_file, status, preview, drive_link]
+                                            if args.share_with:
+                                                cmd.extend(["--share-with", args.share_with])
+                                                
+                                            res = subprocess.run(cmd, capture_output=True, text=True)
+                                            if res.returncode == 0:
+                                                sys.stdout.write(res.stdout + "\n")
+                                            else:
+                                                sys.stderr.write(f"Warning: Sheet logging failed: {res.stderr}\n")
+                                    except Exception as sheet_err:
+                                        sys.stderr.write(f"Warning: Unexpected error during Sheet logging: {sheet_err}\n")
+
                                 sys.exit(0)
                             else:
                                 sys.stderr.write(f"Task succeeded but no resultUrls found in: {result_json_str}\n")

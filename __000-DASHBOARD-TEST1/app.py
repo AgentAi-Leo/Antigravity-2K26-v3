@@ -16,8 +16,18 @@ import shlex
 # Helper: Get Python Path (prefers virtual environment)
 # -----------------------------------------------------------------------------
 def get_python_cmd():
-    # Simplest and most reliable: Use the interpreter currently running the dashboard
+    # Use the venv Python from the same directory as this app.py file.
+    # sys.executable may point to a DIFFERENT venv (e.g. V2 symlink) that
+    # lacks required packages like google-api-python-client.
     import sys
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    venv_python = os.path.join(app_dir, ".venv", "bin", "python")
+    if os.path.exists(venv_python):
+        return venv_python
+    venv_python3 = os.path.join(app_dir, ".venv", "bin", "python3")
+    if os.path.exists(venv_python3):
+        return venv_python3
+    # Fallback to the running interpreter
     return sys.executable
 
 # -----------------------------------------------------------------------------
@@ -192,7 +202,7 @@ def trigger_complete_overlay(placeholder):
 # -----------------------------------------------------------------------------
 # Helper: Process Audio/Video Transcription
 # -----------------------------------------------------------------------------
-def process_uploaded_files(file_paths, selected_skill, run_env, proc_overlay=None, main_spinner=None):
+def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input="", drive_folder="", google_sheet="", share_with="", proc_overlay=None, main_spinner=None):
     """Executes transcription for a list of files and returns the processed data."""
     results = []
     progress_text = st.empty()
@@ -200,17 +210,75 @@ def process_uploaded_files(file_paths, selected_skill, run_env, proc_overlay=Non
     
     python_cmd = get_python_cmd()
     
+    # --- DEBUG: Log all parameters received ---
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    _log = logging.getLogger("process_uploaded_files")
+    _log.info(f"[DEBUG] base_args_input = {repr(base_args_input)}")
+    _log.info(f"[DEBUG] drive_folder = {repr(drive_folder)}")
+    _log.info(f"[DEBUG] google_sheet = {repr(google_sheet)}")
+    _log.info(f"[DEBUG] share_with = {repr(share_with)}")
+    _log.info(f"[DEBUG] cwd = {repr(cwd)}")
+    _log.info(f"[DEBUG] python_cmd = {repr(python_cmd)}")
+    _log.info(f"[DEBUG] ELEVENLABS_API_KEY in env = {bool(run_env.get('ELEVENLABS_API_KEY'))}")
+    _log.info(f"[DEBUG] GEMINI_API_KEY in env = {bool(run_env.get('GEMINI_API_KEY'))}")
+    _log.info(f"[DEBUG] file_paths = {file_paths}")
+    # --- END DEBUG ---
+    
     for i, fp in enumerate(file_paths):
         progress_text.info(f"⏳ PROCESSING file {i+1} of {len(file_paths)}: `{os.path.basename(fp)}`...")
         
-        current_cmd = [python_cmd, selected_skill["script"], "--input", fp]
+        # Build command with UI-provided arguments
+        local_args = str(base_args_input).replace("{FILE_1}", str(fp))
+        import shlex
+        try:
+            local_parsed = shlex.split(local_args)
+        except Exception:
+            local_parsed = []
+            
+        if "--input" not in local_parsed and "input" not in str(local_args):
+            local_parsed = ["--input", fp] + local_parsed
+            
+        current_cmd = [python_cmd, selected_skill["script"]] + local_parsed
+        if drive_folder:
+            current_cmd.extend(["--drive-folder", drive_folder])
+        if google_sheet:
+            current_cmd.extend(["--google-sheet", google_sheet])
+        if share_with:
+            current_cmd.extend(["--share-with", share_with])
+        
+        # --- DEBUG: Log exact command ---
+        _log.info(f"[DEBUG] FULL CMD: {current_cmd}")
+        # --- END DEBUG ---
+        
         res = subprocess.run(current_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
+        
+        # --- DEBUG: Log subprocess result ---
+        _log.info(f"[DEBUG] returncode = {res.returncode}")
+        _dbg_out: str = repr(res.stdout)
+        _dbg_err: str = repr(res.stderr)
+        _log.info(f"[DEBUG] stdout = {_dbg_out[:500]}")  # type: ignore[index]
+        _log.info(f"[DEBUG] stderr = {_dbg_err[:500]}")  # type: ignore[index]
+        # --- END DEBUG ---
         
         transcript = ""
         if res.returncode == 0:
             ignore_prefixes = ("Transcribing:", "Saved:", "Usage:")
             lines = [l for l in res.stdout.strip().splitlines() if not l.startswith(ignore_prefixes)]
             transcript = "\n".join(lines).strip()
+            
+            # Capture Google IDs from stderr for badge direct-links
+            _machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "Auto-uploading", "Logging results", "Converting", "Warning:")
+            for stderr_line in res.stderr.splitlines():
+                if stderr_line.startswith("FolderID:"):
+                    st.session_state["_google_folder_id"] = stderr_line.split(":", 1)[1].strip()
+                elif stderr_line.startswith("SheetID:"):
+                    st.session_state["_google_sheet_id"] = stderr_line.split(":", 1)[1].strip()
+            
+            # Show non-machine stderr lines as warnings (but filter out machine-readable ones)
+            err_lines = [l for l in res.stderr.strip().splitlines() if not any(l.startswith(p) for p in _machine_prefixes)]
+            if err_lines:
+                transcript += "\n\n**Backend Logs/Warnings:**\n" + "\n".join(err_lines).strip()
             
             # Extract usage — audio_transcribe.py writes Usage: to stderr; text2speech.py uses stdout
             usage_line = (
@@ -267,7 +335,7 @@ def process_uploaded_files(file_paths, selected_skill, run_env, proc_overlay=Non
     progress_text.empty()
     return results
 
-def process_tts_files(file_paths, selected_skill, run_env, proc_overlay=None, main_spinner=None):
+def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", drive_folder="", google_sheet="", share_with="", proc_overlay=None, main_spinner=None):
     """Executes Text2Speech for a list of document files and returns the processed audio data."""
     results = []
     progress_text = st.empty()
@@ -279,7 +347,20 @@ def process_tts_files(file_paths, selected_skill, run_env, proc_overlay=None, ma
         original_name = os.path.basename(fp)
         progress_text.info(f"⏳ PROCESSING document {i+1} of {len(file_paths)}: `{original_name}`...")
         
-        current_cmd = [python_cmd, selected_skill["script"], "--input", fp]
+        local_args = str(base_args_input).replace("{FILE_1}", str(fp))
+        import shlex
+        try:
+            local_parsed = shlex.split(local_args)
+        except Exception:
+            local_parsed = ["--input", fp]
+            
+        current_cmd = [python_cmd, selected_skill["script"]] + local_parsed
+        if drive_folder:
+            current_cmd.extend(["--drive-folder", drive_folder])
+        if google_sheet:
+            current_cmd.extend(["--google-sheet", google_sheet])
+        if share_with:
+            current_cmd.extend(["--share-with", share_with])
         res = subprocess.run(current_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
         
         if res.returncode == 0:
@@ -316,6 +397,19 @@ def process_tts_files(file_paths, selected_skill, run_env, proc_overlay=None, ma
                         is_manual_input = (os.path.basename(fp) == "input_text.txt")
                         if not is_manual_input:
                             content_preview += f"\n\n**Statistics:** {usage_line.split(':', 1)[-1].strip()}"
+
+                    # Capture Google IDs from stderr for badge direct-links
+                    _tts_machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "Auto-uploading", "Logging results", "Converting", "Warning:")
+                    for stderr_line in res.stderr.splitlines():
+                        if stderr_line.startswith("FolderID:"):
+                            st.session_state["_google_folder_id"] = stderr_line.split(":", 1)[1].strip()
+                        elif stderr_line.startswith("SheetID:"):
+                            st.session_state["_google_sheet_id"] = stderr_line.split(":", 1)[1].strip()
+
+                    # Surface stderr logs as well (filter out machine-readable lines)
+                    err_lines = [l for l in res.stderr.strip().splitlines() if not any(l.startswith(p) for p in _tts_machine_prefixes)]
+                    if err_lines:
+                        content_preview += "\n\n**Backend Logs/Warnings:**\n" + "\n".join(err_lines).strip()
 
                     results.append({
                         "name": os.path.basename(full_saved_path),
@@ -709,7 +803,7 @@ def check_password():
 
 
     st.markdown("<div class='login-container'>", unsafe_allow_html=True)
-    st.title("🔒 Antigravity Dashboard")
+    st.title("🔒 Antigravity Dashboard", anchor=False)
     # Description removed per user request
     
     
@@ -767,6 +861,10 @@ def check_password():
                         kie_key = _fetch_gcp_secret("DEV-TEST0-KIE")
                         if kie_key:
                             st.session_state["KIE_API_KEY"] = kie_key
+                        
+                        g_user_email = _fetch_gcp_secret("DEV-TEST5-G_USER")
+                        if g_user_email:
+                            st.session_state["GCP_USER_EMAIL"] = g_user_email
                     
                     st.rerun()
                 else:
@@ -863,7 +961,7 @@ def discover_skills():
 # -----------------------------------------------------------------------------
 skills = discover_skills()
 
-st.sidebar.title("🚀 Antigravity Skills")
+st.sidebar.title("🚀 Antigravity Skills", anchor=False)
 st.sidebar.markdown(f"**{len(skills)} skills loaded**")
 
 # Add Search Box
@@ -1038,7 +1136,7 @@ if selected_skill is None:
     st.stop()
 assert selected_skill is not None
 
-st.title(selected_skill["name"])
+st.title(selected_skill["name"], anchor=False)
 if selected_skill.get("display_title") and selected_skill["display_title"] != selected_skill["name"]:
     st.markdown(f"### *{selected_skill['display_title']}*")
 st.info(selected_skill["desc"])
@@ -1057,7 +1155,7 @@ is_rag_skill = selected_skill["basename"] == "AI-LLM-RAGQuery"
 is_translate_skill = selected_skill["basename"] == "AI-LLM-TranslateText"
 
 if is_audio_skill:
-    st.subheader("Upload Audio Files")
+    st.subheader("Upload Audio Files", anchor=False)
     uploader_label = "Upload Audio Files"
     accepted_types = [
         "mp3", "wav", "m4a", "aac", "ogg", "flac", "webm",
@@ -1065,14 +1163,14 @@ if is_audio_skill:
         "mp4", "mov", "avi", "mkv"
     ]
 elif is_tts_skill:
-    st.subheader("Upload Text Files for Narration")
+    st.subheader("Upload Text Files for Narration", anchor=False)
     uploader_label = "Upload Text Files"
     st.caption("ElevenLabs cleanly auto-extracts text from Plain Text, Markdown, RTF, DOC, and DOCX files for narration.")
     accepted_types = [
         "txt", "md", "rtf", "doc", "docx", "csv", "json", "py", "sh", "yaml", "yml", "ini"
     ]
 else:
-    st.subheader("Upload Document Files")
+    st.subheader("Upload Document Files", anchor=False)
     uploader_label = "Upload Document Files"
     accepted_types = [
         "txt", "md", "docx", "doc", "csv", "json", "rtf", "py", "sh", "yaml", "yml"
@@ -1118,6 +1216,34 @@ def check_new_uploads_for_duplicates(file_list):
 
 # File uploader OUTSIDE the form so uploads trigger immediately
 skill_args: dict[str, Any] = {}
+
+# --- Specialized Skill Inputs (Part 1: Above Uploader) ---
+if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "AI-LLM-KIE-ElevenLabs-Speech2Text", "AI-LLM-Text2Speech", "AI-LLM-KIE-ElevenLabs-Text2Speech"]:
+    col1, col2 = st.columns(2)
+    with col1:
+        skill_args["drive_folder"] = st.text_input("Google Drive Folder (Optional):", placeholder="e.g. AI-Audio/Podcasts")
+    with col2:
+        skill_args["google_sheet"] = st.text_input("Google Sheet Name (Optional):", placeholder="e.g. Transcription Database")
+    
+    default_email = st.session_state.get("GCP_USER_EMAIL", os.environ.get("GCP_USER_EMAIL", ""))
+    skill_args["share_with"] = st.text_input("User Email for Auto-Sharing (Optional):", 
+                                            value=default_email,
+                                            type="password",
+                                            placeholder="e.g. user@gmail.com")
+    # Show direct-link badges ONLY after a successful upload has stored real IDs
+    _has_folder_id = bool(st.session_state.get("_google_folder_id"))
+    _has_sheet_id = bool(st.session_state.get("_google_sheet_id"))
+    if _has_folder_id or _has_sheet_id:
+        badge_html = '<style>@keyframes badgeFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>'
+        badge_html += '<div style="display:flex;gap:10px;margin:8px 0 4px 0;animation:badgeFadeIn 1s ease-out;">'
+        if _has_folder_id:
+            drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
+            badge_html += f'<a href="{drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
+        if _has_sheet_id:
+            sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
+            badge_html += f'<a href="{sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheets</a>'
+        badge_html += '</div>'
+        st.markdown(badge_html, unsafe_allow_html=True)
 if selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
     uploaded_files = []
     # Optionally display a nice instruction block instead of the uploader
@@ -1196,13 +1322,21 @@ if current_upload_id and current_upload_id != get_skill_state("prev_upload_id"):
     if new_files:
         auto_run = True
 
+manual_run_clicked = False
+if uploaded_files and not auto_run and (is_audio_skill or is_tts_skill):
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔄 REPROCESS FILES WITH CURRENT SETTINGS", use_container_width=True, type="secondary"):
+        # Reset tracking state so it processes the existing files again
+        set_skill_state("processed_files", set())
+        manual_run_clicked = True
+
 # --- URL Input for Specific Skills ---
 url_input = ""
 html_capture = False
 if url_input:
     st.info(f"Targeting URL: `{url_input}`")
 
-# --- Specialized Skill Inputs ---
+# --- Specialized Skill Inputs (Part 2: Below Uploader) ---
 if selected_skill and selected_skill.get("basename") == "AI-LLM-ImageGenerate":
     skill_args["prompt"] = st.text_area("Image Prompt:", placeholder="A futuristic city with neon lights...", height=100)
     col1, col2 = st.columns(2)
@@ -1283,7 +1417,9 @@ elif selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "
 
 # --- Manual Text Input Fallback ---
 manual_text = ""
-if not uploaded_files and not url_input and not any(skill_args.values()):
+# Check for any values in skill_args EXCEPT drive_folder
+has_other_skill_args = any(v for k, v in skill_args.items() if k != "drive_folder")
+if not uploaded_files and not url_input and not has_other_skill_args:
     if selected_skill["basename"] not in [
         "AI-LLM-ImageGenerate", 
         "AI-LLM-EmbedText", 
@@ -1342,7 +1478,7 @@ elif selected_skill and selected_skill.get("basename") == "AI-LLM-TranslateText"
 elif selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"] and skill_args.get("title") and skill_args.get("fields") and skill_args.get("_force_run") == "True":
     has_special_input = True
 
-should_run = auto_run or (url_input != "") or has_special_input or (manual_text != "" and enter_clicked) or (not is_tts_skill and manual_text != "")
+should_run = auto_run or manual_run_clicked or (url_input != "") or has_special_input or (manual_text != "" and enter_clicked) or (not is_tts_skill and manual_text != "")
 
 if should_run:
     args_input = ""
@@ -1485,7 +1621,12 @@ if should_run:
                 run_env["KIE_API_KEY"] = st.session_state["KIE_API_KEY"]
             
             if is_audio_skill:
-                new_files = process_uploaded_files(file_paths, selected_skill, run_env, proc_overlay=proc_overlay, main_spinner=main_spinner)
+                new_files = process_uploaded_files(file_paths, selected_skill, run_env, 
+                                                   base_args_input=locals().get("base_args_input", args_input),
+                                                   drive_folder=skill_args.get("drive_folder", ""), 
+                                                   google_sheet=skill_args.get("google_sheet", ""),
+                                                   share_with=skill_args.get("share_with", ""),
+                                                   proc_overlay=proc_overlay, main_spinner=main_spinner)
                 existing = get_skill_state("last_processed_files", [])
                 existing.extend(new_files)
                 set_skill_state("last_processed_files", existing)
@@ -1495,7 +1636,12 @@ if should_run:
                     set_skill_state("auto_open_result", True)
                     st.success(f"✅ Successfully processed {len(file_paths)} file(s)")
             elif is_tts_skill and file_paths:
-                new_files = process_tts_files(file_paths, selected_skill, run_env, proc_overlay=proc_overlay, main_spinner=main_spinner)
+                new_files = process_tts_files(file_paths, selected_skill, run_env, 
+                                              base_args_input=locals().get("base_args_input", args_input),
+                                              drive_folder=skill_args.get("drive_folder", ""), 
+                                              google_sheet=skill_args.get("google_sheet", ""),
+                                              share_with=skill_args.get("share_with", ""),
+                                              proc_overlay=proc_overlay, main_spinner=main_spinner)
                 existing = get_skill_state("last_processed_files", [])
                 existing.extend(new_files)
                 set_skill_state("last_processed_files", existing)
@@ -1671,6 +1817,22 @@ def show_result_popup(text: str):
         st.markdown("<h1 class='processed-header'><span style='filter:none;'>📄</span> GOOGLE SHEET GENERATED</h1>", unsafe_allow_html=True)
     else:
         st.markdown("<h1 class='processed-header'><span style='filter:none;'>📄</span> PROCESSED RESULT</h1>", unsafe_allow_html=True)
+    
+    # Show Google Drive / Sheets badges if IDs were captured during processing
+    _popup_has_folder = bool(st.session_state.get("_google_folder_id"))
+    _popup_has_sheet = bool(st.session_state.get("_google_sheet_id"))
+    if _popup_has_folder or _popup_has_sheet:
+        _badge_html = '<style>@keyframes badgeFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>'
+        _badge_html += '<div style="display:flex;gap:10px;margin:8px 0 12px 0;animation:badgeFadeIn 1s ease-out;">'
+        if _popup_has_folder:
+            _drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
+            _badge_html += f'<a href="{_drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
+        if _popup_has_sheet:
+            _sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
+            _badge_html += f'<a href="{_sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheets</a>'
+        _badge_html += '</div>'
+        st.markdown(_badge_html, unsafe_allow_html=True)
+
     if processed_files:
         current_file: dict = processed_files[min(idx, len(processed_files)-1)] # type: ignore
         import mimetypes
@@ -1756,33 +1918,6 @@ def show_result_popup(text: str):
                 _doc_stats = f"{_word_count:,} words · {_char_count:,} chars"
             if _doc_stats and not is_google_sheet:
                 st.markdown(f"**Viewing {idx + 1} of {len(processed_files)}**: `{display_name}`  &nbsp; <span style='background:#444;color:#ccc;padding:2px 8px;border-radius:6px;font-size:0.8em;'>{_doc_stats}</span>", unsafe_allow_html=True)
-        # --- Quick Select List & Upload (Playlist) ---
-        # Hide for Google Sheet skill as it's redundant (always just one "Result")
-        if not is_google_sheet:
-            with st.expander("ALL DOCUMENTS", expanded=False):
-                if is_media:
-                    st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
-                else:
-                    st.markdown("<h3 class='centered-header'>MY DOCUMENTS</h3>", unsafe_allow_html=True)
-                
-                if get_skill_state("popup_batch_success"):
-                    st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
-                    set_skill_state("popup_batch_success", False)
-                
-                st.markdown("<div class='quick-select-btns'>", unsafe_allow_html=True)
-                for i, clip in enumerate(processed_files):
-                    is_active = (i == get_skill_state("file_index", 0))
-                    if is_active:
-                        st.markdown(f"<div class='active-clip'>🟢 {clip['name']}</div>", unsafe_allow_html=True)
-                    else:
-                        with st.container():
-                            st.markdown("<div class='playlist-clip-marker'></div>", unsafe_allow_html=True)
-                            if st.button(f"⚪️ {clip['name']}", key=f"clip_btn_{i}", use_container_width=True):
-                                set_skill_state("file_index", i)
-                                set_skill_state("auto_open_result", True)
-                                st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
         # Show navigation buttons if there are multiple files
         if len(processed_files) > 1:
             label_type = "Clip" if is_media else "File"
@@ -1990,6 +2125,33 @@ def show_result_popup(text: str):
                 """,
                 height=0
             )
+
+        # --- Quick Select List & Upload (Playlist) ---
+        # Hide for Google Sheet skill as it's redundant (always just one "Result")
+        if not is_google_sheet:
+            with st.expander("ALL DOCUMENTS", expanded=False):
+                if is_media:
+                    st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<h3 class='centered-header'>MY DOCUMENTS</h3>", unsafe_allow_html=True)
+                
+                if get_skill_state("popup_batch_success"):
+                    st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
+                    set_skill_state("popup_batch_success", False)
+                
+                st.markdown("<div class='quick-select-btns'>", unsafe_allow_html=True)
+                for i, clip in enumerate(processed_files):
+                    is_active = (i == get_skill_state("file_index", 0))
+                    if is_active:
+                        st.markdown(f"<div class='active-clip'>🟢 {clip['name']}</div>", unsafe_allow_html=True)
+                    else:
+                        with st.container():
+                            st.markdown("<div class='playlist-clip-marker'></div>", unsafe_allow_html=True)
+                            if st.button(f"⚪️ {clip['name']}", key=f"clip_btn_{i}", use_container_width=True):
+                                set_skill_state("file_index", i)
+                                set_skill_state("auto_open_result", True)
+                                st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
             
     # Render the transcription box BELOW the navigation buttons
     import html

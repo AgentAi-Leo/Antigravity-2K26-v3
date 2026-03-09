@@ -11,6 +11,7 @@ def main():
     parser.add_argument("--output", type=str, help="Path to save the generated .mp3 file")
     parser.add_argument("--voice_id", type=str, default="JBFqnCBsd6RMkjVDRZzb", help="ElevenLabs Voice ID")
     parser.add_argument("--model_id", type=str, default="eleven_multilingual_v2", help="ElevenLabs Model ID")
+    parser.add_argument("--drive-folder", type=str, help="Optional: Google Drive folder path to upload the resulting audio")
     args = parser.parse_args()
 
     output_path: str = getattr(args, 'output', None) or ""
@@ -110,6 +111,29 @@ def main():
         txt_output = output_stem + ".txt"
         with open(txt_output, "w", encoding="utf-8") as txt_f:
             txt_f.write(content)
+
+        # Optional: Auto-upload to Google Drive
+        if args.drive_folder:
+            print(f"Auto-uploading to Google Drive folder: '{args.drive_folder}'...", file=sys.stderr)
+            try:
+                import subprocess
+                # Locate the upload_to_drive.py script relative to this script
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                drive_script = os.path.abspath(os.path.join(current_dir, "..", "..", "..", "_000-Basics", "Data-GoogleDrive", "scripts", "upload_to_drive.py"))
+                
+                if os.path.exists(drive_script):
+                    res = subprocess.run(
+                        [sys.executable, drive_script, "--file", output_path, "--folder", args.drive_folder],
+                        capture_output=True, text=True
+                    )
+                    if res.returncode == 0:
+                        print(res.stdout, file=sys.stdout)
+                    else:
+                        print(f"Warning: Drive upload failed: {res.stderr}", file=sys.stderr)
+                else:
+                    print(f"Warning: Could not find upload_to_drive.py at {drive_script}", file=sys.stderr)
+            except Exception as drive_err:
+                print(f"Warning: Unexpected error during Drive upload: {drive_err}", file=sys.stderr)
 
     except Exception as e:
         err_str = str(e).lower()

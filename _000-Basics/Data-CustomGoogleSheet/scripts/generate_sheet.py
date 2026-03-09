@@ -31,6 +31,8 @@ def get_secret(project_id, secret_id):
         # 2. Force the correct site-packages into sys.path
         # We look for the .venv relative to this script
         script_dir = os.path.dirname(os.path.abspath(__file__))
+        # Centralized token path for all Google integrations
+        token_path = os.path.abspath(os.path.join(script_dir, "..", "..", "token.json"))
         venv_base = os.path.abspath(os.path.join(script_dir, "..", "..", "..", ".venv"))
         site_pkgs = os.path.join(venv_base, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages")
         
@@ -107,6 +109,8 @@ def authenticate(credentials_path):
                         tmp_path = tmp.name
                     creds = service_account.Credentials.from_service_account_file(tmp_path, scopes=SCOPES)
                     os.unlink(tmp_path)
+                    print(f"INFO: Authenticated as Service Account: {data.get('client_email')}")
+                    print("IMPORTANT: If you don't see your sheets, ensure you share the parent folder with this email (if applicable) or wait for auto-sharing.")
                     return creds
                 
                 # Otherwise OAuth Desktop flow
@@ -128,7 +132,7 @@ def authenticate(credentials_path):
             
     return creds
 
-def generate_sheet(title, fields, creds_path):
+def generate_sheet(title, fields, creds_path, share_with=None):
     try:
         creds = authenticate(creds_path)
     except Exception as e:
@@ -183,6 +187,19 @@ def generate_sheet(title, fields, creds_path):
         except Exception as e:
             print(f"Note: Could not automatically open browser ({e}).")
 
+        # 3. Handle Auto-sharing
+        if share_with:
+            print(f"Sharing sheet with: {share_with}...")
+            # Use drive service for permissions
+            drive_service = build('drive', 'v3', credentials=creds)
+            permission = {
+                'type': 'user',
+                'role': 'writer',
+                'emailAddress': share_with
+            }
+            drive_service.permissions().create(fileId=spreadsheet_id, body=permission).execute()
+            print(f"✅ Shared successfully.")
+
     except Exception as e:
         print(f"An error occurred calling the Google Sheets API: {e}")
 
@@ -191,10 +208,11 @@ def main():
     parser.add_argument("--title", required=True, help="The title of the new Google Sheet")
     parser.add_argument("--fields", nargs="+", default=[], help="List of column names (e.g. 'First Name' 'Email' 'Phone')")
     parser.add_argument("--credentials", default="credentials.json", help="Path to your Google API JSON credentials (default: credentials.json in current dir)")
+    parser.add_argument("--share-with", help="Email address to share the new sheet with")
     
     args = parser.parse_args()
     
-    generate_sheet(args.title, args.fields, args.credentials)
+    generate_sheet(args.title, args.fields, args.credentials, args.share_with)
 
 if __name__ == '__main__':
     main()

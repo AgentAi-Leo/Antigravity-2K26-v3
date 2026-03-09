@@ -324,6 +324,9 @@ def main() -> None:
                         help="Translate transcript to this language (Gemini only)")
     parser.add_argument("--provider",    default="kie", choices=["gemini", "openai", "kie"])
     parser.add_argument("--model",       default=None,   help="Override model")
+    parser.add_argument("--drive-folder", help="Optional: Google Drive folder path to upload the input audio")
+    parser.add_argument("--google-sheet", help="Optional: Google Sheet name to log results")
+    parser.add_argument("--share-with",   help="Optional: Email to share Drive files and Sheets with")
     args = parser.parse_args()
 
     if not os.path.exists(args.input):
@@ -373,6 +376,93 @@ def main() -> None:
         print(f"Saved: {args.output}")
     else:
         print(result)
+
+    # Optional: Auto-upload to Google Drive
+    drive_link = ""
+    if args.drive_folder:
+        upload_target = args.input
+        ext_lower = os.path.splitext(args.input)[1].lower()
+        
+        if ext_lower != ".mp3":
+            sys.stderr.write(f"Converting '{ext_lower}' to '.mp3' for Google Drive browser compatibility...\n")
+            import tempfile
+            import subprocess
+            temp_dir = tempfile.mkdtemp()
+            base_name = os.path.splitext(os.path.basename(args.input))[0]
+            mp3_path = os.path.join(temp_dir, f"{base_name}.mp3")
+            
+            # Use ffmpeg to convert the audio
+            conv_res = subprocess.run(
+                ["ffmpeg", "-y", "-i", args.input, "-vn", "-ar", "44100", "-ac", "2", "-b:a", "192k", mp3_path],
+                capture_output=True, text=True
+            )
+            if conv_res.returncode == 0 and os.path.exists(mp3_path):
+                upload_target = mp3_path
+            else:
+                sys.stderr.write(f"Warning: MP3 conversion failed, proceeding with original file. Error: {conv_res.stderr}\n")
+                
+        sys.stderr.write(f"Auto-uploading to Google Drive folder: '{args.drive_folder}'...\n")
+        try:
+            import subprocess
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            drive_script = os.path.abspath(os.path.join(current_dir, "..", "..", "..", "_000-Basics", "Data-GoogleDrive", "scripts", "upload_to_drive.py"))
+            
+            if os.path.exists(drive_script):
+                cmd = [sys.executable, drive_script, "--file", upload_target, "--folder", args.drive_folder]
+                if args.share_with:
+                    cmd.extend(["--share-with", args.share_with])
+                
+                res = subprocess.run(cmd, capture_output=True, text=True)
+                if res.returncode == 0:
+                    sys.stdout.write(res.stdout + "\n")
+                    # Extract link and folder ID for sheet logging and badge links
+                    for line in res.stderr.splitlines():
+                        if "Link:" in line:
+                            drive_link = line.split("Link:", 1)[1].strip()
+                        elif "FolderID:" in line:
+                            sys.stderr.write(line + "\n")
+                else:
+                    sys.stderr.write(f"Warning: Drive upload failed: {res.stderr}\n")
+            else:
+                sys.stderr.write(f"Warning: Could not find upload_to_drive.py at {drive_script}\n")
+        except Exception as drive_err:
+            sys.stderr.write(f"Warning: Unexpected error during Drive upload: {drive_err}\n")
+
+    # Optional: Log to Google Sheet
+    if args.google_sheet:
+        sys.stderr.write(f"Logging results to Google Sheet: '{args.google_sheet}'...\n")
+        try:
+            import subprocess
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            sheet_script = os.path.abspath(os.path.join(current_dir, "..", "..", "..", "_000-Basics", "Data-GoogleSheet", "scripts", "append_to_sheet.py"))
+            
+            if os.path.exists(sheet_script):
+                # Data: [Original File, Status, Transcript/Text, Drive Link]
+                status = "Success"
+                # Truncate transcript for sheet if very long
+                res_str = str(result)
+                if len(res_str) > 5000:
+                    preview = res_str[:5000] + "..."  # type: ignore
+                else:
+                    preview = res_str
+                
+                cmd = [sys.executable, sheet_script, "--title", args.google_sheet, "--data", os.path.basename(args.input), status, preview, drive_link]
+                if args.share_with:
+                    cmd.extend(["--share-with", args.share_with])
+                
+                res = subprocess.run(cmd, capture_output=True, text=True)
+                if res.returncode == 0:
+                    sys.stdout.write(res.stdout + "\n")
+                    # Propagate SheetID for badge links
+                    for line in res.stderr.splitlines():
+                        if "SheetID:" in line:
+                            sys.stderr.write(line + "\n")
+                else:
+                    sys.stderr.write(f"Warning: Sheet logging failed: {res.stderr}\n")
+            else:
+                sys.stderr.write(f"Warning: Could not find append_to_sheet.py at {sheet_script}\n")
+        except Exception as sheet_err:
+            sys.stderr.write(f"Warning: Unexpected error during Sheet logging: {sheet_err}\n")
 
 
 if __name__ == "__main__":
