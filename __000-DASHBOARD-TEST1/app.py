@@ -1285,23 +1285,16 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
     _has_folder_id = bool(st.session_state.get("_google_folder_id"))
     _has_sheet_id = bool(st.session_state.get("_google_sheet_id"))
     if _has_folder_id or _has_sheet_id:
-        # Use server-side macOS 'open' command to launch in system default browser
-        # (IDE Simple Browser cannot handle Google Sheets — fonts.googleapis.com hangs)
-        _badge_cols = st.columns([1, 1, 4]) if (_has_folder_id and _has_sheet_id) else st.columns([1, 5])
-        _col_idx = 0
+        badge_html = '<style>@keyframes badgeFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>'
+        badge_html += '<div style="display:flex;gap:10px;margin:8px 0 4px 0;animation:badgeFadeIn 1s ease-out;">'
         if _has_folder_id:
             drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
-            with _badge_cols[_col_idx]:
-                if st.button("📁 Google Drive", key="_badge_drive_main", type="primary"):
-                    import subprocess as _sp
-                    _sp.Popen(["open", drive_url])
-            _col_idx += 1
+            badge_html += f'<a href="{drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
         if _has_sheet_id:
             sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            with _badge_cols[_col_idx]:
-                if st.button("📊 Google Sheets", key="_badge_sheet_main"):
-                    import subprocess as _sp
-                    _sp.Popen(["open", sheet_url])
+            badge_html += f'<a href="{sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheets</a>'
+        badge_html += '</div>'
+        st.markdown(badge_html, unsafe_allow_html=True)
 if selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
     uploaded_files = []
     # Optionally display a nice instruction block instead of the uploader
@@ -1880,23 +1873,16 @@ def show_result_popup(text: str):
     _popup_has_folder = bool(st.session_state.get("_google_folder_id"))
     _popup_has_sheet = bool(st.session_state.get("_google_sheet_id"))
     if _popup_has_folder or _popup_has_sheet:
-        # Use server-side macOS 'open' command to launch in system default browser
-        # (Zen/Firefox-based browsers hang on Google Sheets font loading)
-        _popup_badge_cols = st.columns([1, 1, 4]) if (_popup_has_folder and _popup_has_sheet) else st.columns([1, 5])
-        _popup_col_idx = 0
+        _badge_html = '<style>@keyframes badgeFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>'
+        _badge_html += '<div style="display:flex;gap:10px;margin:8px 0 12px 0;animation:badgeFadeIn 1s ease-out;">'
         if _popup_has_folder:
             _drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
-            with _popup_badge_cols[_popup_col_idx]:
-                if st.button("📁 Google Drive", key="_badge_drive_popup", type="primary"):
-                    import subprocess as _sp
-                    _sp.Popen(["open", _drive_url])
-            _popup_col_idx += 1
+            _badge_html += f'<a href="{_drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
         if _popup_has_sheet:
             _sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            with _popup_badge_cols[_popup_col_idx]:
-                if st.button("📊 Google Sheets", key="_badge_sheet_popup"):
-                    import subprocess as _sp
-                    _sp.Popen(["open", _sheet_url])
+            _badge_html += f'<a href="{_sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheets</a>'
+        _badge_html += '</div>'
+        st.markdown(_badge_html, unsafe_allow_html=True)
 
     if processed_files:
         current_file: dict = processed_files[min(idx, len(processed_files)-1)] # type: ignore
