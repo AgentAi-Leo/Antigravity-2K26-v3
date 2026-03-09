@@ -97,6 +97,11 @@ def get_or_create_sheet(service, title, fields, share_with=None, creds=None):
         if share_with:
             permission = {'type': 'user', 'role': 'writer', 'emailAddress': share_with}
             drive_service.permissions().create(fileId=ss_id, body=permission).execute()
+        
+        # Brief pause so the Sheets API fully registers the header row
+        # before the first values().append() call (prevents lost first row)
+        import time
+        time.sleep(1)
             
         return ss_id
 
@@ -154,10 +159,22 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
         
         body = {'values': [row]}
         # Use USER_ENTERED so =HYPERLINK formulas are interpreted
-        service.spreadsheets().values().append(
-            spreadsheetId=sheet_id, range='A1',
-            valueInputOption='USER_ENTERED', body=body).execute()
-        print(f"✅ Appended to Google Sheet: '{title}'")
+        # Retry once if append fails (first file after sheet creation can be flaky)
+        import time
+        for attempt in range(2):
+            try:
+                service.spreadsheets().values().append(
+                    spreadsheetId=sheet_id, range='A1',
+                    valueInputOption='USER_ENTERED', body=body).execute()
+                print(f"✅ Appended to Google Sheet: '{title}'")
+                break
+            except Exception as append_err:
+                if attempt == 0:
+                    print(f"⚠️ Append attempt 1 failed, retrying in 2s: {append_err}")
+                    time.sleep(2)
+                else:
+                    print(f"❌ Append failed after retry: {append_err}")
+                    raise
     
     # Auto-resize column widths to fit content, EXCEPT Transcript/Text (col F = index 5)
     # HEADERS: A=BatchID, B=#, C=Timestamp, D=OrigFile, E=Status, F=Transcript, G=Preview, H=CopyLink
