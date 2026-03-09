@@ -207,6 +207,7 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             for i in range(start, min(end, len(col_widths))):
                 if i == skip_col:
                     continue
+                pad = 50 if i in (8, 9) else 20  # Extra width for Notes columns
                 pad_requests.append({
                     'updateDimensionProperties': {
                         'range': {
@@ -215,7 +216,7 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                             'startIndex': i,
                             'endIndex': i + 1
                         },
-                        'properties': {'pixelSize': col_widths[i] + 20},
+                        'properties': {'pixelSize': col_widths[i] + pad},
                         'fields': 'pixelSize'
                     }
                 })
