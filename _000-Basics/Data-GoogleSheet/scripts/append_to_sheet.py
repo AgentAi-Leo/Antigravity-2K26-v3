@@ -138,6 +138,7 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
     sheet_id = get_or_create_sheet(service, title, HEADERS, share_with, creds)
     
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    result = None
     
     if batch_summary:
         # Summary row: values should be ["N files", "X total words"] or similar
@@ -152,7 +153,7 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             ""
         ]
         body = {'values': [row]}
-        service.spreadsheets().values().append(
+        result = service.spreadsheets().values().append(
             spreadsheetId=sheet_id, range='A1',
             valueInputOption='RAW', body=body).execute()
         print(f"✅ Summary row appended to Google Sheet: '{title}'")
@@ -206,10 +207,35 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
     # HEADERS: A=BatchID, B=#, C=Timestamp, D=OrigFile, E=Status, F=Transcript, G=Preview, H=CopyLink
     try:
         resize_requests = []
-        # Auto-resize columns A-E (indices 0-4) and G-J (indices 6-9)
+        
+        # 0) Parse appended row to add hover notes for long text (>20 chars)
+        if result and 'updates' in result and 'updatedRange' in result['updates']:
+            import re
+            match = re.search(r'([A-Z]+)(\d+)', result['updates']['updatedRange'])
+            if match:
+                row_idx = int(match.group(2)) - 1
+                for col_idx, cell_value in enumerate(row):
+                    val_str = str(cell_value)
+                    # Add note to cells with >20 chars (skip formulas like =HYPERLINK)
+                    if len(val_str) > 20 and not val_str.startswith('='):
+                        resize_requests.append({
+                            'updateCells': {
+                                'range': {
+                                    'sheetId': 0,
+                                    'startRowIndex': row_idx,
+                                    'endRowIndex': row_idx + 1,
+                                    'startColumnIndex': col_idx,
+                                    'endColumnIndex': col_idx + 1
+                                },
+                                'rows': [{'values': [{'note': val_str}]}],
+                                'fields': 'note'
+                            }
+                        })
+
+        # 1) Auto-resize columns A-E (indices 0-4) and G-J (indices 6-9)
         auto_ranges = [(0, 5), (6, 10)]
         for col_range in auto_ranges:
-            resize_requests.append({
+            resize_requests.append({  # type: ignore[arg-type]
                 'autoResizeDimensions': {
                     'dimensions': {
                         'sheetId': 0,
