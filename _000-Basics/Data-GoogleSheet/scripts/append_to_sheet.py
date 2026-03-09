@@ -129,10 +129,19 @@ def get_or_create_sheet(service, title, fields, share_with=None, creds=None):
         return ss_id
 
 def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", batch_seq="", batch_summary=False):
+    _dbg = open('/tmp/sheet_debug.log', 'a')
+    _dbg.write(f"\n{'='*60}\n")
+    _dbg.write(f"[{datetime.datetime.now()}] append_to_sheet called\n")
+    _dbg.write(f"  title={title}, batch_seq={batch_seq}, batch_summary={batch_summary}\n")
+    _dbg.write(f"  values count={len(values)}, values[0]={values[0] if values else 'EMPTY'}\n")
+    _dbg.flush()
+    
     creds = authenticate(creds_path)
     service = build('sheets', 'v4', credentials=creds)
     
     sheet_id = get_or_create_sheet(service, title, HEADERS, share_with, creds)
+    _dbg.write(f"  sheet_id={sheet_id}\n")
+    _dbg.flush()
     
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -152,11 +161,12 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
         service.spreadsheets().values().append(
             spreadsheetId=sheet_id, range='A1',
             valueInputOption='RAW', body=body).execute()
+        _dbg.write(f"  ✅ Summary row appended\n")
         print(f"✅ Summary row appended to Google Sheet: '{title}'")
     else:
         # Build Drive Link columns:
-        #   Col G "Drive Link"  = clickable preview  (=HYPERLINK(view_url, "📁 Open"))
-        #   Col H "Quick Save"  = direct download     (=HYPERLINK(dl_url,  "⬇️ Save"))
+        #   Col G "Preview"    = clickable preview  (=HYPERLINK(view_url, "📁 Open"))
+        #   Col H "Copy Link"  = plain URL for copy-paste
         drive_link = values[3] if len(values) > 3 else ""
         if drive_link and drive_link.startswith("http"):
             open_formula = f'=HYPERLINK("{drive_link}","📁 Open")'
@@ -180,24 +190,33 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             timestamp,
         ] + row_values
         
+        _dbg.write(f"  Row to append: seq={batch_seq}, file={values[0] if values else '?'}\n")
+        _dbg.write(f"  Row length: {len(row)}\n")
+        _dbg.flush()
+        
         body = {'values': [row]}
         # Use USER_ENTERED so =HYPERLINK formulas are interpreted
         # Retry once if append fails (first file after sheet creation can be flaky)
         import time
         for attempt in range(2):
             try:
-                service.spreadsheets().values().append(
+                result = service.spreadsheets().values().append(
                     spreadsheetId=sheet_id, range='A1',
                     valueInputOption='USER_ENTERED', body=body).execute()
+                _dbg.write(f"  ✅ Append SUCCESS (attempt {attempt+1}): {result.get('updates', {})}\n")
                 print(f"✅ Appended to Google Sheet: '{title}'")
                 break
             except Exception as append_err:
+                _dbg.write(f"  ❌ Append FAILED (attempt {attempt+1}): {append_err}\n")
                 if attempt == 0:
                     print(f"⚠️ Append attempt 1 failed, retrying in 2s: {append_err}")
                     time.sleep(2)
                 else:
                     print(f"❌ Append failed after retry: {append_err}")
                     raise
+    
+    _dbg.write(f"  DONE\n")
+    _dbg.close()
     
     # Auto-resize column widths to fit content, EXCEPT Transcript/Text (col F = index 5)
     # HEADERS: A=BatchID, B=#, C=Timestamp, D=OrigFile, E=Status, F=Transcript, G=Preview, H=CopyLink
