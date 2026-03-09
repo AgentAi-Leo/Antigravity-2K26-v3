@@ -1229,11 +1229,14 @@ else:
 
 # --- Duplicate Checking Logic ---
 def check_new_uploads_for_duplicates(file_list):
-    """Uses differential counting of all uploads to prevent fake triggers on rerun."""
+    """
+    Checks incoming files against processed files.
+    Triggers an error if duplicates exist and RETURNS a filtered list of only NEW files.
+    """
     import collections
     if not file_list:
         set_skill_state("prev_file_counts_dict", collections.Counter())
-        return
+        return file_list
         
     processed = get_skill_state("processed_files", set())
     
@@ -1241,29 +1244,37 @@ def check_new_uploads_for_duplicates(file_list):
     current_files = [f.name + str(f.size) for f in file_list]
     curr_counts = dict(collections.Counter(current_files))
     
-    # If this is the VERY FIRST time we see files in this skill session, 
-    # prime the state so we don't trigger on a cold start.
+    # Prime state on cold start
     ns_key = f"{st.session_state.selected_skill_id}_prev_file_counts_dict"
     if ns_key not in st.session_state:
         set_skill_state("prev_file_counts_dict", curr_counts)
-        return
+        return file_list
         
     prev_counts_raw = get_skill_state("prev_file_counts_dict", {})
     prev_counts: dict[str, int] = dict(prev_counts_raw) if isinstance(prev_counts_raw, dict) else {}  # type: ignore[arg-type]
     
-    # If any file count increased AND that file is already processed, it's a new duplicate drop!
     error_triggered = False
-    for item, count in curr_counts.items():
-        if count > prev_counts.get(item, 0):  # type: ignore[union-attr]
-            if item in list(processed):
+    clean_list = []
+    
+    for f in file_list:
+        file_id = f.name + str(f.size)
+        # If this exact file ID is in our totally processed set, it's a duplicate
+        if file_id in processed:
+            # We also check if the user *just* added it (count increased), which triggers the visual error
+            # If they just hit refresh and the count is the same, we silently remove it without screaming
+            if curr_counts.get(file_id, 0) > prev_counts.get(file_id, 0):
                 error_triggered = True
-                break
+        else:
+            # Not processed yet, keep it!
+            clean_list.append(f)
             
     if error_triggered:
         trigger_duplicate_error()
         
-    # Update the tracking state with ALL current files
+    # Update tracking state with what the UI actually holds right now
     set_skill_state("prev_file_counts_dict", curr_counts)
+    
+    return clean_list
 
 # File uploader OUTSIDE the form so uploads trigger immediately
 skill_args: dict[str, Any] = {}
@@ -1349,12 +1360,14 @@ if uploaded_files and not is_audio_skill and not is_tts_skill:
     uploaded_files = [f for f in uploaded_files if not f.name.lower().endswith('.pdf')]
 
 if uploaded_files:
-    # Disable duplicate file tracking when navigating clips inside dialogs
+    # Remove duplicates immediately from the runtime execution queue
     if not get_skill_state("auto_open_result", False):
-        check_new_uploads_for_duplicates(uploaded_files)
+        uploaded_files = check_new_uploads_for_duplicates(uploaded_files)
         
-    file_names = ", ".join([f.name for f in uploaded_files])
-    st.success(f"📎 {len(uploaded_files)} file(s) uploaded: **{file_names}**")
+    # Re-evaluate truthiness since `uploaded_files` could now be empty
+    if uploaded_files:
+        file_names = ", ".join([f.name for f in uploaded_files])
+        st.success(f"📎 {len(uploaded_files)} file(s) uploaded: **{file_names}**")
 
 # Detect if a NEW file was just uploaded (auto-run trigger)
 # Auto-run for ALL files over riding the previous logic
