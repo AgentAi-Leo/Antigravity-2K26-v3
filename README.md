@@ -7,9 +7,12 @@ Adds:
 - **v2**
     - GoogleSheets w/CSV Skills
 - **v3**
-    - Google Drive Cloud Storage (Categorized)
+    - Google Drive Cloud Storage & Google Sheets Added 
     - ElevenLabs Auto-Upload Integration
-    - TBD-CONNECT Live Sheets Database
+    - ALL TTS and STT Skills Are Stored on Google Drive
+    - Google Sheet Creation and Support Added
+- **v4**
+    - TBD
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
