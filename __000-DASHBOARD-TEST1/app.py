@@ -1344,7 +1344,7 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
     def copy_folder_to_sheet():
         st.session_state["google_sheet_input"] = st.session_state.get("drive_folder_input", "")
 
-    col1, col_btn, col2 = st.columns([10, 2, 10])
+    col1, col_btn, col2 = st.columns([3, 1, 3])
     with col1:
         skill_args["drive_folder"] = st.text_input(
             "Google Drive Folder (Optional):", 
@@ -1353,12 +1353,34 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
         )
     with col_btn:
         st.write("") # Spacer
-        st.write("") # Spacer
         st.button(
             "Copy ➜", 
             on_click=copy_folder_to_sheet, 
             help="Copy Folder Name to Sheet Name",
             use_container_width=True
+        )
+        
+        # Streamlit doesn't support custom button colors natively without 'type'.
+        # We target the button specifically within this column to make it yellow.
+        st.markdown(
+            """
+            <style>
+            div[data-testid="column"]:nth-of-type(2) button {
+                background-color: #ffd700;
+                color: #111;
+                font-weight: 700;
+                border: none;
+                transition: transform 0.2s;
+            }
+            div[data-testid="column"]:nth-of-type(2) button:hover {
+                background-color: #ffe44d;
+                color: #000;
+                border: none;
+                transform: scale(1.02);
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
         )
     with col2:
         skill_args["google_sheet"] = st.text_input(
