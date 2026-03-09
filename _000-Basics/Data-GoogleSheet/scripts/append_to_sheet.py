@@ -3,6 +3,7 @@ import argparse
 import sys
 import json
 import subprocess
+import datetime
 from google.oauth2.credentials import Credentials  # type: ignore
 from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore
 from google.auth.transport.requests import Request  # type: ignore
@@ -13,6 +14,8 @@ SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive.file'
 ]
+
+HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcript/Text", "Drive Link"]
 
 def get_secret(project_id, secret_id):
     try:
@@ -97,24 +100,54 @@ def get_or_create_sheet(service, title, fields, share_with=None, creds=None):
             
         return ss_id
 
-def append_to_sheet(title, values, creds_path, share_with=None):
+def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", batch_seq="", batch_summary=False):
     creds = authenticate(creds_path)
     service = build('sheets', 'v4', credentials=creds)
     
-    # Values as first row if new
-    headers = ["Timestamp", "Original File", "Status", "Transcript/Text", "Drive Link"]
-    sheet_id = get_or_create_sheet(service, title, headers, share_with, creds)
+    sheet_id = get_or_create_sheet(service, title, HEADERS, share_with, creds)
     
-    import datetime
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    row = [timestamp] + values
     
-    body = {'values': [row]}
-    service.spreadsheets().values().append(
-        spreadsheetId=sheet_id, range='A1',
-        valueInputOption='RAW', body=body).execute()
+    if batch_summary:
+        # Summary row: values should be ["N files", "X total words"] or similar
+        summary_text = ", ".join(values) if values else "Batch complete"
+        row = [
+            batch_id or "—",
+            "—",
+            timestamp,
+            f"✅ BATCH COMPLETE: {summary_text}",
+            "—",
+            "",
+            ""
+        ]
+        body = {'values': [row]}
+        service.spreadsheets().values().append(
+            spreadsheetId=sheet_id, range='A1',
+            valueInputOption='RAW', body=body).execute()
+        print(f"✅ Summary row appended to Google Sheet: '{title}'")
+    else:
+        # Normal data row: values = [Original File, Status, Transcript/Text, Drive Link]
+        # Build the Drive Link as a clickable HYPERLINK formula if it looks like a URL
+        drive_link = values[3] if len(values) > 3 else ""
+        if drive_link and drive_link.startswith("http"):
+            hyperlink_formula = f'=HYPERLINK("{drive_link}","📁 Open")'
+            row_values = list(values[:3]) + [hyperlink_formula]
+        else:
+            row_values = list(values)
+        
+        row = [
+            batch_id or "—",
+            batch_seq or "—",
+            timestamp,
+        ] + row_values
+        
+        body = {'values': [row]}
+        # Use USER_ENTERED so =HYPERLINK formulas are interpreted
+        service.spreadsheets().values().append(
+            spreadsheetId=sheet_id, range='A1',
+            valueInputOption='USER_ENTERED', body=body).execute()
+        print(f"✅ Appended to Google Sheet: '{title}'")
     
-    print(f"✅ Appended to Google Sheet: '{title}'")
     # Write purely parsable sheet ID to stderr for calling scripts
     sys.stderr.write(f"SheetID: {sheet_id}\n")
 
@@ -124,9 +157,13 @@ def main():
     parser.add_argument("--data", nargs="+", required=True, help="List of values to append")
     parser.add_argument("--credentials", default="credentials.json", help="Path to credentials")
     parser.add_argument("--share-with", help="Email to share with")
+    parser.add_argument("--batch-id", default="", help="Batch identifier for grouping rows")
+    parser.add_argument("--batch-seq", default="", help="Sequence number within the batch")
+    parser.add_argument("--batch-summary", action="store_true", help="Append a summary row instead of a data row")
     
     args = parser.parse_args()
-    append_to_sheet(args.title, args.data, args.credentials, args.share_with)
+    append_to_sheet(args.title, args.data, args.credentials, args.share_with,
+                    batch_id=args.batch_id, batch_seq=args.batch_seq, batch_summary=args.batch_summary)
 
 if __name__ == '__main__':
     main()

@@ -140,6 +140,8 @@ def main() -> None:
     parser.add_argument("--drive-folder", help="Optional: Google Drive folder path to upload the input audio")
     parser.add_argument("--google-sheet", help="Optional: Google Sheet name to log results")
     parser.add_argument("--share-with",   help="Optional: Email to share Drive files and Sheets with")
+    parser.add_argument("--batch-id",     default="", help="Batch identifier for grouping sheet rows")
+    parser.add_argument("--batch-seq",    default="", help="Sequence number within the batch")
     args = parser.parse_args()
 
     if not os.path.exists(args.input):
@@ -259,6 +261,10 @@ def main() -> None:
                     preview = res_str
                 
                 cmd = [sys.executable, sheet_script, "--title", args.google_sheet, "--data", os.path.basename(args.input), status, preview, drive_link]
+                if args.batch_id:
+                    cmd.extend(["--batch-id", args.batch_id])
+                if args.batch_seq:
+                    cmd.extend(["--batch-seq", args.batch_seq])
                 if args.share_with:
                     cmd.extend(["--share-with", args.share_with])
                 

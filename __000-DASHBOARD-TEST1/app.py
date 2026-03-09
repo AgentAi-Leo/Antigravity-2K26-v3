@@ -210,6 +210,11 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
     
     python_cmd = get_python_cmd()
     
+    # Generate batch ID for multi-file grouping in Google Sheets
+    import datetime as _dt
+    batch_id = _dt.datetime.now().strftime("%Y-%m-%d_%H:%M")
+    total_words = 0
+    
     # --- DEBUG: Log all parameters received ---
     import logging
     logging.basicConfig(level=logging.DEBUG)
@@ -244,6 +249,8 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             current_cmd.extend(["--drive-folder", drive_folder])
         if google_sheet:
             current_cmd.extend(["--google-sheet", google_sheet])
+            current_cmd.extend(["--batch-id", batch_id])
+            current_cmd.extend(["--batch-seq", str(i + 1)])
         if share_with:
             current_cmd.extend(["--share-with", share_with])
         
@@ -266,6 +273,9 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             ignore_prefixes = ("Transcribing:", "Saved:", "Usage:")
             lines = [l for l in res.stdout.strip().splitlines() if not l.startswith(ignore_prefixes)]
             transcript = "\n".join(lines).strip()
+            
+            # Track words for batch summary
+            total_words += len(transcript.split())
             
             # Capture Google IDs from stderr for badge direct-links
             _machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "Auto-uploading", "Logging results", "Converting", "Warning:")
@@ -333,6 +343,22 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             continue
     
     progress_text.empty()
+    
+    # Append batch summary row if files were processed to a Google Sheet
+    if google_sheet and len(results) > 0:
+        try:
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sheet_script = os.path.join(root_dir, "_000-Basics", "Data-GoogleSheet", "scripts", "append_to_sheet.py")
+            if os.path.exists(sheet_script):
+                summary_cmd = [python_cmd, sheet_script, "--title", google_sheet,
+                               "--batch-id", batch_id, "--batch-summary",
+                               "--data", f"{len(results)} files", f"{total_words} total words"]
+                if share_with:
+                    summary_cmd.extend(["--share-with", share_with])
+                subprocess.run(summary_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
+        except Exception:
+            pass  # Summary row is non-critical
+    
     return results
 
 def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", drive_folder="", google_sheet="", share_with="", proc_overlay=None, main_spinner=None):
@@ -342,6 +368,11 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
     cwd = selected_skill["dir"]
     
     python_cmd = get_python_cmd()
+    
+    # Generate batch ID for multi-file grouping in Google Sheets
+    import datetime as _dt
+    batch_id = _dt.datetime.now().strftime("%Y-%m-%d_%H:%M")
+    total_words = 0
     
     for i, fp in enumerate(file_paths):
         original_name = os.path.basename(fp)
@@ -359,6 +390,8 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
             current_cmd.extend(["--drive-folder", drive_folder])
         if google_sheet:
             current_cmd.extend(["--google-sheet", google_sheet])
+            current_cmd.extend(["--batch-id", batch_id])
+            current_cmd.extend(["--batch-seq", str(i + 1)])
         if share_with:
             current_cmd.extend(["--share-with", share_with])
         res = subprocess.run(current_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
@@ -418,6 +451,8 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
                         "transcript": content_preview,
                         "content_preview": content_preview
                     })
+                    # Track words for batch summary (use raw content, not formatted preview)
+                    total_words += len(content_preview.split())
                 else:
                     st.error(f"Could not find output file for {original_name}: {saved_path}")
             else:
@@ -458,6 +493,22 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
             st.code(res.stderr)
     
     progress_text.empty()
+    
+    # Append batch summary row if files were processed to a Google Sheet
+    if google_sheet and len(results) > 0:
+        try:
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sheet_script = os.path.join(root_dir, "_000-Basics", "Data-GoogleSheet", "scripts", "append_to_sheet.py")
+            if os.path.exists(sheet_script):
+                summary_cmd = [python_cmd, sheet_script, "--title", google_sheet,
+                               "--batch-id", batch_id, "--batch-summary",
+                               "--data", f"{len(results)} files", f"{total_words} total words"]
+                if share_with:
+                    summary_cmd.extend(["--share-with", share_with])
+                subprocess.run(summary_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
+        except Exception:
+            pass  # Summary row is non-critical
+    
     return results
 
 
