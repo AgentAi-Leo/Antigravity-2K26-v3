@@ -219,8 +219,8 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                 row_idx = int(match.group(2)) - 1
                 for col_idx, cell_value in enumerate(row):
                     val_str = str(cell_value)
-                    # Add note to cells with >10 chars (skip formulas like =HYPERLINK and skip Copy Link/Notes columns 7, 8, 9)
-                    if len(val_str) > 10 and not val_str.startswith('=') and col_idx not in (7, 8, 9):
+                    # Add note to cells with >10 chars (skip formulas like =HYPERLINK and skip BatchID/Timestamp/Copy Link/Notes columns 0, 2, 7, 8, 9)
+                    if len(val_str) > 10 and not val_str.startswith('=') and col_idx not in (0, 2, 7, 8, 9):
                         resize_requests.append({
                             'updateCells': {
                                 'range': {
@@ -279,8 +279,16 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             for i in range(start, min(end, len(col_widths))):
                 if i == skip_col:
                     continue
-                # Increase padding for Notes columns (indices 8, 9) by an extra 25px (was 50, now 75)
-                pad = 75 if i in (8, 9) else 20
+                # Extra padding overrides: 
+                # - Notes columns (indices 8, 9): 75px
+                # - Timestamp column (index 2): 35px (+15px standard)
+                # - Others: 20px
+                if i in (8, 9):
+                    pad = 75
+                elif i == 2:
+                    pad = 35
+                else:
+                    pad = 20
                 pad_requests.append({
                     'updateDimensionProperties': {
                         'range': {
