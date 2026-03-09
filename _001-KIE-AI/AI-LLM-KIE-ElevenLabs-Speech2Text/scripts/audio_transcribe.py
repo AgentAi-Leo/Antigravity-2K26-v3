@@ -433,10 +433,6 @@ def main() -> None:
     # Optional: Log to Google Sheet
     if args.google_sheet:
         sys.stderr.write(f"Logging results to Google Sheet: '{args.google_sheet}'...\n")
-        # Debug: log to file to trace missing file #1 issue
-        with open('/tmp/sheet_debug.log', 'a') as _dbg:
-            _dbg.write(f"\n--- audio_transcribe.py: batch_seq={args.batch_seq}, file={os.path.basename(args.input)} ---\n")
-            _dbg.write(f"  drive_link={drive_link[:80] if drive_link else 'EMPTY'}\n")
         try:
             import subprocess
             current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -460,15 +456,7 @@ def main() -> None:
                 if args.share_with:
                     cmd.extend(["--share-with", args.share_with])
                 
-                with open('/tmp/sheet_debug.log', 'a') as _dbg:
-                    _dbg.write(f"  Calling append_to_sheet.py with seq={args.batch_seq}\n")
-                
                 res = subprocess.run(cmd, capture_output=True, text=True)
-                
-                with open('/tmp/sheet_debug.log', 'a') as _dbg:
-                    _dbg.write(f"  returncode={res.returncode}\n")
-                    _dbg.write(f"  stdout={res.stdout[:200]}\n")
-                    _dbg.write(f"  stderr={res.stderr[:200]}\n")
                 
                 if res.returncode == 0:
                     sys.stdout.write(res.stdout + "\n")
