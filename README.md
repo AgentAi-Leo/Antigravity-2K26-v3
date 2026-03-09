@@ -13,6 +13,7 @@ Adds:
     - Google Sheet Creation and Support Added
 - **v4**
     - Google Drive & Google Sheets Multi-File Upload Support 
+    - Google Sheet Columns (Headers) & Cell Width Adjustments
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
