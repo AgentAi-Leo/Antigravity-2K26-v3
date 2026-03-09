@@ -300,43 +300,56 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
         _log.info(f"[DEBUG] FULL CMD: {current_cmd}")
         # --- END DEBUG ---
         
-        res = subprocess.run(current_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
+        # Stream the output line by line into the UI
+        process = subprocess.Popen(
+            current_cmd, cwd=cwd, env=run_env,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1, universal_newlines=True
+        )
+        
+        full_output = []
+        output_placeholder = st.empty()
+        
+        if process.stdout:
+            for line in iter(process.stdout.readline, ""):
+                full_output.append(str(line))
+                # Update UI with the latest 20 lines to keep it snappy
+                output_placeholder.code("".join(full_output[-20:])) # type: ignore
+                
+        returncode = process.wait()
+        
+        # Combine everything for legacy parsing logic
+        final_text = "".join(full_output)
         
         # --- DEBUG: Log subprocess result ---
-        _log.info(f"[DEBUG] returncode = {res.returncode}")
-        _dbg_out: str = repr(res.stdout)
-        _dbg_err: str = repr(res.stderr)
-        _log.info(f"[DEBUG] stdout = {_dbg_out[:500]}")  # type: ignore[index]
-        _log.info(f"[DEBUG] stderr = {_dbg_err[:500]}")  # type: ignore[index]
+        _log.info(f"[DEBUG] returncode = {returncode}")
+        _dbg_out: str = repr(final_text)
+        _log.info(f"[DEBUG] combined output = {_dbg_out[:500]}")  # type: ignore[index]
         # --- END DEBUG ---
         
         transcript = ""
-        if res.returncode == 0:
+        if returncode == 0:
             ignore_prefixes = ("Transcribing:", "Saved:", "Usage:")
-            lines = [l for l in res.stdout.strip().splitlines() if not l.startswith(ignore_prefixes)]
+            lines = [l for l in final_text.splitlines() if not l.startswith(ignore_prefixes)]
             transcript = "\n".join(lines).strip()
             
             # Track words for batch summary
             total_words += len(transcript.split())
             
-            # Capture Google IDs from stderr for badge direct-links
+            # Capture Google IDs from combined output for badge direct-links
             _machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "Auto-uploading", "Logging results", "Converting", "Warning:")
-            for stderr_line in res.stderr.splitlines():
-                if stderr_line.startswith("FolderID:"):
-                    st.session_state["_google_folder_id"] = stderr_line.split(":", 1)[1].strip()
-                elif stderr_line.startswith("SheetID:"):
-                    st.session_state["_google_sheet_id"] = stderr_line.split(":", 1)[1].strip()
+            for line in final_text.splitlines():
+                if line.startswith("FolderID:"):
+                    st.session_state["_google_folder_id"] = line.split(":", 1)[1].strip()
+                elif line.startswith("SheetID:"):
+                    st.session_state["_google_sheet_id"] = line.split(":", 1)[1].strip()
             
-            # Show non-machine stderr lines as warnings (but filter out machine-readable ones)
-            err_lines = [l for l in res.stderr.strip().splitlines() if not any(l.startswith(p) for p in _machine_prefixes)]
-            if err_lines:
-                transcript += "\n\n**Backend Logs/Warnings:**\n" + "\n".join(err_lines).strip()
+            # Show non-machine lines as warnings (but filter out machine-readable ones)
+            # Since stdout and stderr are combined, this heuristic might catch script logs.
+            # We'll just append the whole cleaned transcript.
             
             # Extract usage — audio_transcribe.py writes Usage: to stderr; text2speech.py uses stdout
-            usage_line = (
-                next((l for l in res.stderr.splitlines() if l.startswith("Usage:")), None)
-                or next((l for l in res.stdout.splitlines() if l.startswith("Usage:")), None)
-            )
+            usage_line = next((l for l in final_text.splitlines() if l.startswith("Usage:")), None)
             if usage_line:
                 transcript += f"\n\n**Statistics:** {usage_line.split(':', 1)[-1].strip()}"
             
@@ -346,7 +359,7 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
                 "transcript": transcript,
             })
         else:
-            if "__ANTIGRAVITY_API_QUOTA_EXCEEDED__" in res.stderr:
+            if "__ANTIGRAVITY_API_QUOTA_EXCEEDED__" in final_text:
                 if proc_overlay:
                     proc_overlay.empty()
                 if main_spinner:
@@ -359,14 +372,14 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
                 
                 if "kie" in selected_skill["basename"].lower():
                     # Extract the custom Kie.ai msg with bracketed code
-                    match = re.search(r"Kie\.ai (?:Upload |Polling )?Error \[(.*?)\]: (.*)(?:\n|$)", res.stderr)
+                    match = re.search(r"Kie\.ai (?:Upload |Polling )?Error \[(.*?)\]: (.*)(?:\n|$)", final_text)
                     if match:
                         err_code = match.group(1)
                         err_msg = match.group(2).strip()
                         quota_msg = f"\n\n**Details [{err_code}]:** {err_msg}"
                     else:
                         # Fallback for old/unparsed format
-                        match_old = re.search(r"Kie\.ai Error: (.*?)(?:\n|$)", res.stderr)
+                        match_old = re.search(r"Kie\.ai Error: (.*?)(?:\n|$)", final_text)
                         if match_old:
                             quota_msg = f"\n\n**Details:** {match_old.group(1).strip()}"
                     
@@ -374,14 +387,14 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
 
                 else:
                     # Standard ElevenLabs
-                    match = re.search(r"['\"]message['\"]:\s*['\"](.*?)['\"]", res.stderr)
+                    match = re.search(r"['\"]message['\"]:\s*['\"](.*?)['\"]", final_text)
                     if match:
                         quota_msg = f"\n\n**Usage stats:** {match.group(1)}"
                     st.error(f"⚠️ **DENIED!** You have reached the maximum usage allowed by your **ElevenLabs** active subscription/plan. Please upgrade your plan or wait for the quota to reset.{quota_msg}")
                 st.stop()
             
             st.error("Execution Error")
-            st.code(res.stderr)
+            st.code(final_text)
             continue
     
     progress_text.empty()
@@ -1312,8 +1325,8 @@ def check_new_uploads_for_duplicates(file_list):
             
     if error_triggered:
         trigger_duplicate_error()
-        # HARD ABORT: Prevent Streamlit from running anything else with this duplicate file id
-        st.stop()
+        # We simply drop the file from the processing queue, but don't stop the script.
+        # This prevents locking the UI out of processing newly dragged valid files.
     # Update tracking state with what the UI actually holds right now
     set_skill_state("prev_file_counts_dict", curr_counts)
     
