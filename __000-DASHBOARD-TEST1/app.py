@@ -240,12 +240,14 @@ def trigger_processing_overlay():
                     transition: all 0.2s ease !important;
                     box-shadow: none !important;
                     width: auto !important;
+                    transform: scale(0.65) !important;
+                    transform-origin: bottom right !important;
                 }
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) button[kind="secondary"]:hover {
                     color: #fff !important;
                     border-color: #ffcccc !important;
                     background-color: rgba(230, 50, 50, 0.9) !important;
-                    transform: scale(1.05) !important;
+                    transform: scale(0.68) !important;
                 }
             </style>
         """, unsafe_allow_html=True)
