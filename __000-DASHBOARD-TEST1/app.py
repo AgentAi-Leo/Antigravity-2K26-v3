@@ -1361,22 +1361,28 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
         )
         
         # Streamlit doesn't support custom button colors natively without 'type'.
-        # We target the button specifically within this column to make it yellow.
+        # We target the button specifically within this column to make it yellow and push it down to align with inputs.
         st.markdown(
             """
             <style>
-            div[data-testid="column"]:nth-of-type(2) button {
-                background-color: #ffd700;
-                color: #111;
-                font-weight: 700;
-                border: none;
-                transition: transform 0.2s;
+            div[data-testid="column"]:nth-of-type(2) {
+                display: flex;
+                align-items: flex-end; /* push to bottom of row to match input boxes */
+                padding-bottom: 2px;
             }
-            div[data-testid="column"]:nth-of-type(2) button:hover {
-                background-color: #ffe44d;
-                color: #000;
-                border: none;
-                transform: scale(1.02);
+            div[data-testid="column"]:nth-of-type(2) .stButton > button {
+                background-color: #ffd700 !important;
+                color: #111 !important;
+                font-weight: 700 !important;
+                border: none !important;
+                transition: transform 0.2s !important;
+                margin-top: 28px !important; /* height of the label above inputs */
+            }
+            div[data-testid="column"]:nth-of-type(2) .stButton > button:hover {
+                background-color: #ffe44d !important;
+                color: #000 !important;
+                border: none !important;
+                transform: scale(1.02) !important;
             }
             </style>
             """,
