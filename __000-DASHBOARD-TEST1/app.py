@@ -225,7 +225,7 @@ def trigger_processing_overlay():
                     z-index: 999999 !important;
                 }
                 
-                button[kind="secondary"] {
+                div[data-testid="stVerticalBlock"]:has(.processing-marker) button[kind="secondary"] {
                     background-color: rgba(200, 30, 30, 0.8) !important;
                     color: rgba(255, 255, 255, 0.9) !important;
                     border: 1px solid rgba(255, 100, 100, 0.4) !important;
@@ -240,7 +240,7 @@ def trigger_processing_overlay():
                     box-shadow: none !important;
                     width: auto !important;
                 }
-                button[kind="secondary"]:hover {
+                div[data-testid="stVerticalBlock"]:has(.processing-marker) button[kind="secondary"]:hover {
                     color: #fff !important;
                     border-color: #ffcccc !important;
                     background-color: rgba(230, 50, 50, 0.9) !important;
