@@ -330,14 +330,22 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
         full_output: list[str] = []
         output_placeholder = st.empty()
         
-        stdout_stream = process.stdout
-        if stdout_stream is not None:
-            for line in iter(stdout_stream.readline, ""):
-                full_output.append(str(line))
-                # Update UI with the latest 20 lines to keep it snappy
-                output_placeholder.code("".join(full_output[-20:])) # type: ignore
-                
-        returncode = process.wait()
+        try:
+            stdout_stream = process.stdout
+            if stdout_stream is not None:
+                for line in iter(stdout_stream.readline, ""):
+                    full_output.append(str(line))
+                    # Update UI with the latest 20 lines to keep it snappy
+                    output_placeholder.code("".join(full_output[-20:])) # type: ignore
+                    
+            returncode = process.wait()
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
         
         # Combine everything for legacy parsing logic
         final_text = "".join(full_output)
@@ -470,7 +478,18 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
             current_cmd.extend(["--batch-seq", str(i + 1)])
         if share_with:
             current_cmd.extend(["--share-with", share_with])
-        res = subprocess.run(current_cmd, cwd=cwd, capture_output=True, text=True, env=run_env)
+            
+        process = subprocess.Popen(current_cmd, cwd=cwd, env=run_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            stdout_data, stderr_data = process.communicate()
+            res = subprocess.CompletedProcess(process.args, process.returncode, stdout_data, stderr_data)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
         
         if res.returncode == 0:
             saved_path = None
@@ -1863,15 +1882,24 @@ if should_run:
                     full_output: list[str] = []
                     output_placeholder = st.empty()
                     
-                    # Read output line by line as it arrives
-                    stdout_pipe = process.stdout
-                    if stdout_pipe:
-                        for line in iter(stdout_pipe.readline, ""):
-                            full_output.append(str(line))
-                            # Update the UI with the latest 20 lines to keep it snappy
-                            output_placeholder.code("".join(full_output[-20:])) # type: ignore
-                    
-                    returncode = process.wait()
+                    try:
+                        # Read output line by line as it arrives
+                        stdout_pipe = process.stdout
+                        if stdout_pipe:
+                            for line in iter(stdout_pipe.readline, ""):
+                                full_output.append(str(line))
+                                # Update the UI with the latest 20 lines to keep it snappy
+                                output_placeholder.code("".join(full_output[-20:])) # type: ignore
+                        
+                        returncode = process.wait()
+                    finally:
+                        if process.poll() is None:
+                            process.terminate()
+                            try:
+                                process.wait(timeout=2)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                                
                     final_text = "".join(full_output)
                     
                     # Create a compatibility object for the existing result loop
