@@ -1,4 +1,4 @@
-v3 SKILLS - streamlit 03.08.26
+v4 SKILLS - streamlit 03.08.26
 
 Adds:
 - **v1**
@@ -12,7 +12,7 @@ Adds:
     - ALL TTS and STT Skills Are Stored on Google Drive
     - Google Sheet Creation and Support Added
 - **v4**
-    - TBD
+    - Google Drive & Google Sheets Multi-File Upload Support 
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
