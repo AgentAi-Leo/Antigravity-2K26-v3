@@ -15,7 +15,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive.file'
 ]
 
-HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcript/Text", "Preview", "Copy Link"]
+HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcription", "Preview", "Copy Link"]
 
 def get_secret(project_id, secret_id):
     try:
