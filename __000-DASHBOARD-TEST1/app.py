@@ -1341,11 +1341,31 @@ skill_args: dict[str, Any] = {}
 
 # --- Specialized Skill Inputs (Part 1: Above Uploader) ---
 if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "AI-LLM-KIE-ElevenLabs-Speech2Text", "AI-LLM-Text2Speech", "AI-LLM-KIE-ElevenLabs-Text2Speech"]:
-    col1, col2 = st.columns(2)
+    def copy_folder_to_sheet():
+        st.session_state["google_sheet_input"] = st.session_state.get("drive_folder_input", "")
+
+    col1, col_btn, col2 = st.columns([10, 2, 10])
     with col1:
-        skill_args["drive_folder"] = st.text_input("Google Drive Folder (Optional):", placeholder="e.g. AI-Audio/Podcasts")
+        skill_args["drive_folder"] = st.text_input(
+            "Google Drive Folder (Optional):", 
+            placeholder="e.g. AI-Audio/Podcasts",
+            key="drive_folder_input"
+        )
+    with col_btn:
+        st.write("") # Spacer
+        st.write("") # Spacer
+        st.button(
+            "Copy ➜", 
+            on_click=copy_folder_to_sheet, 
+            help="Copy Folder Name to Sheet Name",
+            use_container_width=True
+        )
     with col2:
-        skill_args["google_sheet"] = st.text_input("Google Sheet Name (Optional):", placeholder="e.g. Transcription Database")
+        skill_args["google_sheet"] = st.text_input(
+            "Google Sheet Name (Optional):", 
+            placeholder="e.g. Transcription Database",
+            key="google_sheet_input"
+        )
     
     default_email = st.session_state.get("GCP_USER_EMAIL", os.environ.get("GCP_USER_EMAIL", ""))
     skill_args["share_with"] = st.text_input("User Email for Auto-Sharing (Optional):", 
