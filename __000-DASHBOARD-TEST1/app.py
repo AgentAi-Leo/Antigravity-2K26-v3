@@ -1285,36 +1285,23 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
     _has_folder_id = bool(st.session_state.get("_google_folder_id"))
     _has_sheet_id = bool(st.session_state.get("_google_sheet_id"))
     if _has_folder_id or _has_sheet_id:
-        import streamlit.components.v1 as _components
-        _badge_parts = []
+        # Use server-side macOS 'open' command to launch in system default browser
+        # (IDE Simple Browser cannot handle Google Sheets — fonts.googleapis.com hangs)
+        _badge_cols = st.columns([1, 1, 4]) if (_has_folder_id and _has_sheet_id) else st.columns([1, 5])
+        _col_idx = 0
         if _has_folder_id:
             drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
-            _badge_parts.append(f'<a href="{drive_url}" class="ag-badge" style="background:#1a73e8;">📁 Google Drive</a>')
+            with _badge_cols[_col_idx]:
+                if st.button("📁 Google Drive", key="_badge_drive_main", type="primary"):
+                    import subprocess as _sp
+                    _sp.Popen(["open", drive_url])
+            _col_idx += 1
         if _has_sheet_id:
             sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            _badge_parts.append(f'<a href="{sheet_url}" class="ag-badge" style="background:#0f9d58;">📊 Google Sheets</a>')
-        _badge_full_html = f'''
-        <html><body style="margin:0;padding:0;background:transparent;overflow:hidden;">
-        <style>
-            @keyframes badgeFadeIn{{from{{opacity:0;transform:translateY(6px)}}to{{opacity:1;transform:translateY(0)}}}}
-            .ag-badge{{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;
-                      font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;
-                      color:#fff;cursor:pointer;border:none;transition:filter 0.2s;}}
-            .ag-badge:hover{{filter:brightness(1.15);}}
-            .ag-wrap{{display:flex;gap:10px;margin:4px 0;animation:badgeFadeIn 1s ease-out;}}
-        </style>
-        <div class="ag-wrap">{" ".join(_badge_parts)}</div>
-        <script>
-            document.querySelectorAll(".ag-badge").forEach(function(el){{
-                el.addEventListener("click", function(e){{
-                    e.preventDefault();
-                    window.open(el.href, "_blank", "noopener,noreferrer");
-                }});
-            }});
-        </script>
-        </body></html>
-        '''
-        _components.html(_badge_full_html, height=38, scrolling=False)
+            with _badge_cols[_col_idx]:
+                if st.button("📊 Google Sheets", key="_badge_sheet_main"):
+                    import subprocess as _sp
+                    _sp.Popen(["open", sheet_url])
 if selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
     uploaded_files = []
     # Optionally display a nice instruction block instead of the uploader
@@ -1893,36 +1880,23 @@ def show_result_popup(text: str):
     _popup_has_folder = bool(st.session_state.get("_google_folder_id"))
     _popup_has_sheet = bool(st.session_state.get("_google_sheet_id"))
     if _popup_has_folder or _popup_has_sheet:
-        import streamlit.components.v1 as _components
-        _popup_badge_parts = []
+        # Use server-side macOS 'open' command to launch in system default browser
+        # (Zen/Firefox-based browsers hang on Google Sheets font loading)
+        _popup_badge_cols = st.columns([1, 1, 4]) if (_popup_has_folder and _popup_has_sheet) else st.columns([1, 5])
+        _popup_col_idx = 0
         if _popup_has_folder:
             _drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
-            _popup_badge_parts.append(f'<a href="{_drive_url}" class="ag-badge" style="background:#1a73e8;">📁 Google Drive</a>')
+            with _popup_badge_cols[_popup_col_idx]:
+                if st.button("📁 Google Drive", key="_badge_drive_popup", type="primary"):
+                    import subprocess as _sp
+                    _sp.Popen(["open", _drive_url])
+            _popup_col_idx += 1
         if _popup_has_sheet:
             _sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            _popup_badge_parts.append(f'<a href="{_sheet_url}" class="ag-badge" style="background:#0f9d58;">📊 Google Sheets</a>')
-        _popup_badge_html = f'''
-        <html><body style="margin:0;padding:0;background:transparent;overflow:hidden;">
-        <style>
-            @keyframes badgeFadeIn{{from{{opacity:0;transform:translateY(6px)}}to{{opacity:1;transform:translateY(0)}}}}
-            .ag-badge{{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;
-                      font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;
-                      color:#fff;cursor:pointer;border:none;transition:filter 0.2s;}}
-            .ag-badge:hover{{filter:brightness(1.15);}}
-            .ag-wrap{{display:flex;gap:10px;margin:4px 0;animation:badgeFadeIn 1s ease-out;}}
-        </style>
-        <div class="ag-wrap">{" ".join(_popup_badge_parts)}</div>
-        <script>
-            document.querySelectorAll(".ag-badge").forEach(function(el){{
-                el.addEventListener("click", function(e){{
-                    e.preventDefault();
-                    window.open(el.href, "_blank", "noopener,noreferrer");
-                }});
-            }});
-        </script>
-        </body></html>
-        '''
-        _components.html(_popup_badge_html, height=38, scrolling=False)
+            with _popup_badge_cols[_popup_col_idx]:
+                if st.button("📊 Google Sheets", key="_badge_sheet_popup"):
+                    import subprocess as _sp
+                    _sp.Popen(["open", _sheet_url])
 
     if processed_files:
         current_file: dict = processed_files[min(idx, len(processed_files)-1)] # type: ignore
