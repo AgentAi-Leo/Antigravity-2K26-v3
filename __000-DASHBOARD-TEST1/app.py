@@ -204,29 +204,31 @@ def trigger_processing_overlay():
                    We need to target the top-level button container *within* this st.empty() block */
                 div[data-testid="stVerticalBlock"] > div:has(button) {
                     position: fixed !important;
-                    top: 65% !important;
-                    left: 50% !important;
-                    transform: translate(-50%, -50%) !important;
+                    bottom: 20px !important;
+                    right: 20px !important;
+                    top: auto !important;
+                    left: auto !important;
+                    transform: none !important;
                     z-index: 999999 !important;
                     display: flex !important;
                     justify-content: center !important;
                 }
                 button[kind="secondary"] {
-                    background-color: rgba(20, 20, 20, 0.8) !important;
+                    background-color: rgba(200, 30, 30, 0.8) !important;
                     color: rgba(255, 255, 255, 0.9) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.4) !important;
-                    padding: 10px 40px !important;
-                    font-size: 16px !important;
+                    border: 1px solid rgba(255, 100, 100, 0.4) !important;
+                    padding: 6px 20px !important;
+                    font-size: 12px !important;
                     font-weight: bold !important;
-                    letter-spacing: 2px !important;
+                    letter-spacing: 1px !important;
                     border-radius: 8px !important;
                     transition: all 0.2s ease !important;
                     box-shadow: 0px 4px 15px rgba(0,0,0,0.5) !important;
                 }
                 button[kind="secondary"]:hover {
                     color: #fff !important;
-                    border-color: #fff !important;
-                    background-color: rgba(60, 60, 60, 0.9) !important;
+                    border-color: #ffcccc !important;
+                    background-color: rgba(230, 50, 50, 0.9) !important;
                     transform: scale(1.05) !important;
                 }
             </style>
