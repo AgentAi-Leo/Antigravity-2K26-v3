@@ -159,6 +159,42 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             valueInputOption='USER_ENTERED', body=body).execute()
         print(f"✅ Appended to Google Sheet: '{title}'")
     
+    # Auto-resize column widths to fit content, EXCEPT Transcript/Text (col F = index 5)
+    # HEADERS: A=BatchID, B=#, C=Timestamp, D=OrigFile, E=Status, F=Transcript, G=Preview, H=CopyLink
+    try:
+        resize_requests = []
+        # Auto-resize columns A-E (indices 0-4) and G-H (indices 6-7)
+        for col_range in [(0, 5), (6, 8)]:
+            resize_requests.append({
+                'autoResizeDimensions': {
+                    'dimensions': {
+                        'sheetId': 0,
+                        'dimension': 'COLUMNS',
+                        'startIndex': col_range[0],
+                        'endIndex': col_range[1]
+                    }
+                }
+            })
+        # Set Transcript/Text (col F = index 5) to fixed 250px width
+        resize_requests.append({
+            'updateDimensionProperties': {
+                'range': {
+                    'sheetId': 0,
+                    'dimension': 'COLUMNS',
+                    'startIndex': 5,
+                    'endIndex': 6
+                },
+                'properties': {'pixelSize': 250},
+                'fields': 'pixelSize'
+            }
+        })
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={'requests': resize_requests}
+        ).execute()
+    except Exception:
+        pass  # Non-critical — don't fail the upload if resize fails
+    
     # Write purely parsable sheet ID to stderr for calling scripts
     sys.stderr.write(f"SheetID: {sheet_id}\n")
 
