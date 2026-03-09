@@ -184,7 +184,7 @@ def trigger_processing_overlay():
     placeholder = st.empty()
     with placeholder.container():
         st.markdown("""
-            <div class='processing-marker' style='pointer-events: auto; padding: 20px; text-align: center;'>
+            <div class='processing-marker' style='pointer-events: auto; padding: 20px; padding-bottom: 60px; text-align: center;'>
                 <div style='line-height: 1.1; margin-bottom: 10px; font-size: 2rem; font-weight: bold; color: #a8ffdb; font-family: sans-serif;'>
                     PROCESSING!<br>
                     <span style='font-size: 1.2rem; opacity: 0.8; font-weight: normal; color: #88d4b4;'>Please stand by!</span>
@@ -194,7 +194,7 @@ def trigger_processing_overlay():
                     <div class='dot'></div>
                     <div class='dot'></div>
                 </div>
-                <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 15px; margin-bottom: 30px;'>
+                <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 15px; margin-bottom: 10px;'>
                     Depending on file size: Could Take Up to 5 mins.
                 </div>
             </div>
@@ -229,13 +229,16 @@ def trigger_processing_overlay():
                     background-color: rgba(200, 30, 30, 0.8) !important;
                     color: rgba(255, 255, 255, 0.9) !important;
                     border: 1px solid rgba(255, 100, 100, 0.4) !important;
-                    padding: 6px 20px !important;
-                    font-size: 12px !important;
+                    padding: 4px 12px !important;
+                    font-size: 10px !important;
+                    min-height: 0 !important;
+                    height: auto !important;
                     font-weight: bold !important;
-                    letter-spacing: 1px !important;
-                    border-radius: 8px !important;
+                    letter-spacing: 0.5px !important;
+                    border-radius: 4px !important;
                     transition: all 0.2s ease !important;
-                    box-shadow: 0px 4px 15px rgba(0,0,0,0.5) !important;
+                    box-shadow: none !important;
+                    width: auto !important;
                 }
                 button[kind="secondary"]:hover {
                     color: #fff !important;
