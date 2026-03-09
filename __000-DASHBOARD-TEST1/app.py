@@ -171,12 +171,20 @@ def trigger_duplicate_error():
             b64 = base64.b64encode(data).decode()
             st.markdown(f'<audio autoplay><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
 
+def cancel_processing():
+    """Callback to instantly abort processing and clear the UI."""
+    # Since Streamlit reruns on click, this callback runs before the rest of the script.
+    # We clear the active triggers so the script doesn't try to auto-run again on reload
+    set_skill_state("prev_upload_id", "CANCELLED")
+    if get_skill_state("auto_open_result"):
+        set_skill_state("auto_open_result", False)
+
 def trigger_processing_overlay():
-    """Shows a centered processing banner with a dots animation."""
+    """Shows a centered processing banner with a dots animation and a cancel button."""
     placeholder = st.empty()
-    with placeholder:
+    with placeholder.container():
         st.markdown("""
-            <div class='centered-overlay-processing'>
+            <div class='centered-overlay-processing' style='pointer-events: auto; padding-bottom: 20px;'>
                 <div style='line-height: 1.1; margin-bottom: 10px;'>
                     PROCESSING!<br>
                     <span style='font-size: 0.6em; opacity: 0.8; font-weight: normal;'>Please stand by!</span>
@@ -186,11 +194,38 @@ def trigger_processing_overlay():
                     <div class='dot'></div>
                     <div class='dot'></div>
                 </div>
-                <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 10px;'>
+                <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 10px; margin-bottom: 20px;'>
                     Depending on file size: Could Take Up to 5 mins.
                 </div>
             </div>
+            <style>
+                /* Elevate the stButton above the overlay background */
+                div[data-testid="stVerticalBlock"] > div > div > div[data-testid="stButton"] {
+                    position: fixed;
+                    top: 65%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    z-index: 10000;
+                }
+                div[data-testid="stVerticalBlock"] > div > div > div[data-testid="stButton"] button {
+                    background-color: transparent !important;
+                    color: rgba(255, 255, 255, 0.6) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+                    padding: 8px 30px !important;
+                    font-size: 14px !important;
+                    font-weight: 500 !important;
+                    letter-spacing: 1.5px !important;
+                    transition: all 0.2s ease !important;
+                }
+                div[data-testid="stVerticalBlock"] > div > div > div[data-testid="stButton"] button:hover {
+                    color: rgba(255, 255, 255, 1) !important;
+                    border-color: rgba(255, 255, 255, 0.8) !important;
+                    background-color: rgba(255, 255, 255, 0.1) !important;
+                }
+            </style>
         """, unsafe_allow_html=True)
+        # Add the actual interactive button over the HTML overlay
+        st.button("CANCEL", on_click=cancel_processing, key=f"cancel_btn_{time.time()}")
     return placeholder
 
 def trigger_complete_overlay(placeholder):
