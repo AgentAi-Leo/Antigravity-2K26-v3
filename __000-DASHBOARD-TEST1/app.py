@@ -250,9 +250,41 @@ def trigger_processing_overlay():
                     transform: scale(0.68) !important;
                 }
             </style>
+            </style>
         """, unsafe_allow_html=True)
         # Add the actual interactive button over the HTML overlay
         st.button("CANCEL", on_click=cancel_processing, key=f"cancel_btn_{time.time()}", help="Immediately stop processing and discard results.")
+        
+        # Inject Javascript to bind ESCAPE to the Cancel button
+        import streamlit.components.v1 as components
+        components.html("""
+            <script>
+                const doc = window.parent.document;
+                const escListener = function(ev) {
+                    if (ev.key === 'Escape') {
+                        // Find the cancel button in the modal
+                        const modal = doc.querySelector('.processing-marker');
+                        if (modal) {
+                            const modalContainer = modal.closest('div[data-testid="stVerticalBlock"]');
+                            if (modalContainer) {
+                                const cancelBtn = modalContainer.querySelector('button[kind="secondary"]');
+                                if (cancelBtn) {
+                                    ev.preventDefault();
+                                    cancelBtn.click();
+                                }
+                            }
+                        }
+                    }
+                };
+                
+                // Add listener and ensure it doesn't duplicate
+                if (!doc._escBoundForCancel) {
+                    doc.addEventListener('keydown', escListener);
+                    doc._escBoundForCancel = true;
+                }
+            </script>
+        """, height=0)
+        
     return placeholder
 
 def trigger_complete_overlay(placeholder):
