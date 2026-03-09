@@ -1317,11 +1317,11 @@ def check_new_uploads_for_duplicates(file_list):
     # Prime state on cold start
     ns_key = f"{st.session_state.selected_skill_id}_prev_file_counts_dict"
     if ns_key not in st.session_state:
-        set_skill_state("prev_file_counts_dict", curr_counts)
-        return file_list
-        
-    prev_counts_raw = get_skill_state("prev_file_counts_dict", {})
-    prev_counts: dict[str, int] = dict(prev_counts_raw) if isinstance(prev_counts_raw, dict) else {}  # type: ignore[arg-type]
+        # Treat as empty previous state so all dragged files are considered "new" and will trip the duplicate check if already processed
+        prev_counts: dict[str, int] = {}
+    else:
+        prev_counts_raw = get_skill_state("prev_file_counts_dict", {})
+        prev_counts = dict(prev_counts_raw) if isinstance(prev_counts_raw, dict) else {}  # type: ignore[arg-type]
     
     error_triggered = False
     clean_list = []
