@@ -200,7 +200,8 @@ def trigger_processing_overlay():
             </div>
             <style>
                 /* Style the actual parent Streamlit container to act as the dark modal box */
-                div[data-testid="stVerticalBlock"]:has(.processing-marker) {
+                /* We use > div.element-container to prevent matching the global app container */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) {
                     position: fixed !important;
                     top: 50% !important;
                     left: 50% !important;
@@ -217,7 +218,7 @@ def trigger_processing_overlay():
                 }
                 
                 /* Target the child container holding the st.button */
-                div[data-testid="stVerticalBlock"]:has(.processing-marker) > div:last-child {
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) > div:last-child {
                     position: absolute !important;
                     bottom: 15px !important;
                     right: 15px !important;
@@ -225,7 +226,7 @@ def trigger_processing_overlay():
                     z-index: 999999 !important;
                 }
                 
-                div[data-testid="stVerticalBlock"]:has(.processing-marker) button[kind="secondary"] {
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) button[kind="secondary"] {
                     background-color: rgba(200, 30, 30, 0.8) !important;
                     color: rgba(255, 255, 255, 0.9) !important;
                     border: 1px solid rgba(255, 100, 100, 0.4) !important;
@@ -240,7 +241,7 @@ def trigger_processing_overlay():
                     box-shadow: none !important;
                     width: auto !important;
                 }
-                div[data-testid="stVerticalBlock"]:has(.processing-marker) button[kind="secondary"]:hover {
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) button[kind="secondary"]:hover {
                     color: #fff !important;
                     border-color: #ffcccc !important;
                     background-color: rgba(230, 50, 50, 0.9) !important;
