@@ -4,6 +4,7 @@ import sys
 import json
 import subprocess
 import datetime
+import tempfile
 from google.oauth2.credentials import Credentials  # type: ignore
 from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore
 from google.auth.transport.requests import Request  # type: ignore
@@ -71,17 +72,40 @@ def authenticate(credentials_path):
             
     return creds
 
+def _sheet_cache_path(title):
+    """Return a temp file path used to cache the sheet ID for a given title."""
+    import hashlib
+    safe = hashlib.md5(title.encode()).hexdigest()
+    return os.path.join(tempfile.gettempdir(), f"sheet_cache_{safe}.txt")
+
 def get_or_create_sheet(service, title, fields, share_with=None, creds=None):
-    # Search for an existing sheet with this title
+    # 1) Check local cache first (avoids Drive API eventual-consistency issues
+    #    where a just-created sheet isn't findable via files.list yet)
+    cache_file = _sheet_cache_path(title)
+    if os.path.exists(cache_file):
+        cached_id = open(cache_file).read().strip()
+        if cached_id:
+            try:
+                # Verify the cached sheet still exists
+                service.spreadsheets().get(spreadsheetId=cached_id, fields='spreadsheetId').execute()
+                return cached_id
+            except Exception:
+                pass  # Cache stale — fall through to search/create
+
+    # 2) Search Drive for an existing sheet with this title
     query = f"name = '{title}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
     drive_service = build('drive', 'v3', credentials=creds)
     results = drive_service.files().list(q=query, fields="files(id, name)").execute()
     files = results.get('files', [])
     
     if files:
-        return files[0]['id']
+        sheet_id = files[0]['id']
+        # Cache it for subsequent files in the same batch
+        with open(cache_file, 'w') as f:
+            f.write(sheet_id)
+        return sheet_id
     else:
-        # Create new one
+        # 3) Create new sheet
         spreadsheet = {'properties': {'title': title}}
         ss = service.spreadsheets().create(body=spreadsheet, fields='spreadsheetId').execute()
         ss_id = ss.get('spreadsheetId')
@@ -98,10 +122,9 @@ def get_or_create_sheet(service, title, fields, share_with=None, creds=None):
             permission = {'type': 'user', 'role': 'writer', 'emailAddress': share_with}
             drive_service.permissions().create(fileId=ss_id, body=permission).execute()
         
-        # Brief pause so the Sheets API fully registers the header row
-        # before the first values().append() call (prevents lost first row)
-        import time
-        time.sleep(1)
+        # Cache the new sheet ID so the next file in the batch finds it instantly
+        with open(cache_file, 'w') as f:
+            f.write(ss_id)
             
         return ss_id
 
