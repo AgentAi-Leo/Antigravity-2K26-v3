@@ -255,7 +255,7 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
     # Generate batch ID for multi-file grouping in Google Sheets
     import datetime as _dt
     batch_id = _dt.datetime.now().strftime("%Y-%m-%d_%H:%M")
-    total_words = 0
+    total_words: int = 0
     
     # --- DEBUG: Log all parameters received ---
     import logging
@@ -307,11 +307,12 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             text=True, bufsize=1, universal_newlines=True
         )
         
-        full_output = []
+        full_output: list[str] = []
         output_placeholder = st.empty()
         
-        if process.stdout:
-            for line in iter(process.stdout.readline, ""):
+        stdout_stream = process.stdout
+        if stdout_stream is not None:
+            for line in iter(stdout_stream.readline, ""):
                 full_output.append(str(line))
                 # Update UI with the latest 20 lines to keep it snappy
                 output_placeholder.code("".join(full_output[-20:])) # type: ignore
@@ -334,7 +335,7 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             transcript = "\n".join(lines).strip()
             
             # Track words for batch summary
-            total_words += len(transcript.split())
+            total_words += len(transcript.split()) # type: ignore[operator]
             
             # Capture Google IDs from combined output for badge direct-links
             _machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "Auto-uploading", "Logging results", "Converting", "Warning:")
@@ -427,7 +428,7 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
     # Generate batch ID for multi-file grouping in Google Sheets
     import datetime as _dt
     batch_id = _dt.datetime.now().strftime("%Y-%m-%d_%H:%M")
-    total_words = 0
+    total_words: int = 0
     
     for i, fp in enumerate(file_paths):
         original_name = os.path.basename(fp)
@@ -507,7 +508,7 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
                         "content_preview": content_preview
                     })
                     # Track words for batch summary (use raw content, not formatted preview)
-                    total_words += len(content_preview.split())
+                    total_words += len(content_preview.split()) # type: ignore[operator]
                 else:
                     st.error(f"Could not find output file for {original_name}: {saved_path}")
             else:
@@ -1293,11 +1294,12 @@ def check_new_uploads_for_duplicates(file_list):
         set_skill_state("prev_file_counts_dict", collections.Counter())
         return file_list
         
-    processed = get_skill_state("processed_files", set())
+    processed_raw = get_skill_state("processed_files", set())
+    processed: set[str] = processed_raw if isinstance(processed_raw, set) else set()
     
     # Count ALL files currently in the widget
     current_files = [f.name + str(f.size) for f in file_list]
-    curr_counts = dict(collections.Counter(current_files))
+    curr_counts: dict[str, int] = dict(collections.Counter(current_files))
     
     # Prime state on cold start
     ns_key = f"{st.session_state.selected_skill_id}_prev_file_counts_dict"
@@ -1314,10 +1316,10 @@ def check_new_uploads_for_duplicates(file_list):
     for f in file_list:
         file_id = f.name + str(f.size)
         # If this exact file ID is in our totally processed set, it's a duplicate
-        if file_id in processed:
+        if file_id in processed: # type: ignore
             # We also check if the user *just* added it (count increased), which triggers the visual error
             # If they just hit refresh and the count is the same, we silently remove it without screaming
-            if curr_counts.get(file_id, 0) > prev_counts.get(file_id, 0):
+            if curr_counts.get(file_id, 0) > prev_counts.get(file_id, 0): # type: ignore
                 error_triggered = True
         else:
             # Not processed yet, keep it!
