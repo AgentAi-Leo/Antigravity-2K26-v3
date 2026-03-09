@@ -144,7 +144,11 @@ def get_or_create_sheet(service, title, fields, share_with=None, creds=None):
             if share_with:
                 _dbg.write(f"  [get_or_create] Sharing with {share_with}...\n")
                 permission = {'type': 'user', 'role': 'writer', 'emailAddress': share_with}
-                drive_service.permissions().create(fileId=ss_id, body=permission).execute()
+                try:
+                    drive_service.permissions().create(fileId=ss_id, body=permission).execute()
+                except Exception as share_err:
+                    _dbg.write(f"  [get_or_create] ⚠️ Warning: Failed to share sheet: {share_err}\n")
+                    print(f"⚠️ Warning: Could not share Google Sheet with {share_with}. You may need to share it manually. Error: {share_err}")
             
             # Cache the new sheet ID so the next file in the batch finds it instantly
             _dbg.write(f"  [get_or_create] Caching new ID to {cache_file}...\n")
