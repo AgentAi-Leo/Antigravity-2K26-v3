@@ -163,8 +163,9 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
     # HEADERS: A=BatchID, B=#, C=Timestamp, D=OrigFile, E=Status, F=Transcript, G=Preview, H=CopyLink
     try:
         resize_requests = []
-        # Auto-resize columns A-E (indices 0-4) and G-H (indices 6-7)
-        for col_range in [(0, 5), (6, 10)]:
+        # Auto-resize columns A-E (indices 0-4) and G-J (indices 6-9)
+        auto_ranges = [(0, 5), (6, 10)]
+        for col_range in auto_ranges:
             resize_requests.append({
                 'autoResizeDimensions': {
                     'dimensions': {
@@ -175,7 +176,7 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                     }
                 }
             })
-        # Set Transcript/Text (col F = index 5) to fixed 250px width
+        # Set Transcription (col F = index 5) to fixed 250px width
         resize_requests.append({
             'updateDimensionProperties': {
                 'range': {
@@ -192,6 +193,37 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             spreadsheetId=sheet_id,
             body={'requests': resize_requests}
         ).execute()
+        
+        # Add 20px padding to auto-resized columns so content isn't cut off
+        sheet_meta = service.spreadsheets().get(
+            spreadsheetId=sheet_id,
+            fields='sheets.data.columnMetadata.pixelSize'
+        ).execute()
+        col_widths = [c.get('pixelSize', 100) for c in
+                      sheet_meta['sheets'][0]['data'][0].get('columnMetadata', [])]
+        pad_requests = []
+        skip_col = 5  # Transcription — already fixed
+        for start, end in auto_ranges:
+            for i in range(start, min(end, len(col_widths))):
+                if i == skip_col:
+                    continue
+                pad_requests.append({
+                    'updateDimensionProperties': {
+                        'range': {
+                            'sheetId': 0,
+                            'dimension': 'COLUMNS',
+                            'startIndex': i,
+                            'endIndex': i + 1
+                        },
+                        'properties': {'pixelSize': col_widths[i] + 20},
+                        'fields': 'pixelSize'
+                    }
+                })
+        if pad_requests:
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={'requests': pad_requests}
+            ).execute()
     except Exception:
         pass  # Non-critical — don't fail the upload if resize fails
     
