@@ -163,7 +163,7 @@ def render_speed_controls(skill_id=None, stats_text=""):
 
 def trigger_duplicate_error():
     """Triggers the centered animated error overlay with sound."""
-    st.markdown(f"<div class='centered-overlay-error' data-salt='{time.time()}'>⚠️ FILE ALREADY EXISTS!</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='centered-overlay-error' data-salt='{time.time()}'>⚠️ FILE(S) ALREADY EXISTS!</div>", unsafe_allow_html=True)
     sound_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio", "universfield-system-error-notice-132470.mp3")
     if os.path.exists(sound_path):
         with open(sound_path, "rb") as f:
