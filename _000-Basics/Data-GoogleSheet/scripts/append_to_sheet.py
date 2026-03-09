@@ -184,11 +184,9 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             timestamp,
         ] + row_values
         
-        # Ensure row has at least 10 columns (A through J).
         # Cols I & J (indices 8 & 9) are usually Notes-1 and Notes-2.
         while len(row) < 10:
-            row.append("Add Note Here!")
-        
+            row.append("")
         body = {'values': [row]}
         # Use USER_ENTERED so =HYPERLINK formulas are interpreted
         # Retry once if append fails (first file after sheet creation can be flaky)
@@ -221,8 +219,8 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                 row_idx = int(match.group(2)) - 1
                 for col_idx, cell_value in enumerate(row):
                     val_str = str(cell_value)
-                    # Add note to cells with >10 chars (skip formulas like =HYPERLINK)
-                    if len(val_str) > 10 and not val_str.startswith('='):
+                    # Add note to cells with >10 chars (skip formulas like =HYPERLINK and skip Notes columns 8, 9)
+                    if len(val_str) > 10 and not val_str.startswith('=') and col_idx not in (8, 9):
                         resize_requests.append({
                             'updateCells': {
                                 'range': {
