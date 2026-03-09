@@ -1270,7 +1270,8 @@ def check_new_uploads_for_duplicates(file_list):
             
     if error_triggered:
         trigger_duplicate_error()
-        
+        # HARD ABORT: Prevent Streamlit from running anything else with this duplicate file id
+        st.stop()
     # Update tracking state with what the UI actually holds right now
     set_skill_state("prev_file_counts_dict", curr_counts)
     
@@ -1387,12 +1388,6 @@ if current_upload_id and current_upload_id != get_skill_state("prev_upload_id"):
         auto_run = True
 
 manual_run_clicked = False
-if uploaded_files and not auto_run and (is_audio_skill or is_tts_skill):
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔄 REPROCESS FILES WITH CURRENT SETTINGS", use_container_width=True, type="secondary"):
-        # Reset tracking state so it processes the existing files again
-        set_skill_state("processed_files", set())
-        manual_run_clicked = True
 
 # --- URL Input for Specific Skills ---
 url_input = ""
