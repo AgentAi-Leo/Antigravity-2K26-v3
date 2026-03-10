@@ -2180,7 +2180,7 @@ if should_run:
     cwd: str = str(selected_skill["dir"])
     
     # Use manual status instead of with st.spinner so we can clear it before st.stop()
-    output_expander = st.expander("📄 Output", expanded=False)
+    output_expander = st.expander("📄 Data", expanded=False)
     
     # NOTE: We no longer reset last_processed_files here — clips accumulate
     # across batches within the session. The file_index is set after processing
@@ -2232,6 +2232,11 @@ if should_run:
                     _msg = f"✅ Successfully processed {len(file_paths)} file(s)"
                     st.success(_msg)
                     set_skill_state("_last_success_msg", _msg)
+                    # Store combined processing output for persistent Data expander
+                    _all_output = []
+                    for nf in new_files:
+                        _all_output.append(str(nf.get("transcript", "")))
+                    set_skill_state("_last_data_output", "\n\n".join(_all_output))
             elif is_tts_skill and file_paths:
                 new_files = process_tts_files(file_paths, selected_skill, run_env, 
                                               base_args_input=locals().get("base_args_input", args_input),
@@ -2423,10 +2428,13 @@ if should_run:
 # --- Persistent Output Expander (always rendered, survives MY CLIPS navigation) ---
 _stored_upload_msg = get_skill_state("_upload_status_msg", "") if selected_skill else ""
 _stored_success_msg = get_skill_state("_last_success_msg", "") if selected_skill else ""
-if _stored_upload_msg or _stored_success_msg:
-    with st.expander("📄 Output", expanded=False):
+_stored_data_output = get_skill_state("_last_data_output", "") if selected_skill else ""
+if _stored_upload_msg or _stored_success_msg or _stored_data_output:
+    with st.expander("📄 Data", expanded=False):
         if _stored_upload_msg:
             st.success(_stored_upload_msg)
+        if _stored_data_output:
+            st.code(_stored_data_output)
         if _stored_success_msg:
             st.success(_stored_success_msg)
 
