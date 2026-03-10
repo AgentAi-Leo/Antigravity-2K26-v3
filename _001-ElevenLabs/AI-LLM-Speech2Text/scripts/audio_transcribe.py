@@ -231,7 +231,7 @@ def main() -> None:
                     for line in res.stderr.splitlines():
                         if "Link:" in line:
                             drive_link = line.split("Link:", 1)[1].strip()
-                        elif "FolderID:" in line:
+                        elif "FolderID:" in line or "FileID:" in line:
                             sys.stderr.write(line + "\n")
                 else:
                     sys.stderr.write(f"Warning: Drive upload failed: {res.stderr}\n")

@@ -458,3 +458,26 @@ div[data-testid="stStatusWidget"] {
         transform: translate(-50%, -50%) scale(1.05);
     }
 }
+
+/* 19. SAVE TO GOOGLE ACCT Toggle – Force Green When Active */
+/* Streamlit 1.54 toggle structure (from source: checkbox.BKgfzJZV.js):
+   div[data-baseweb="checkbox"][role="checkbox"]  (Root)
+     └── div (ToggleTrack – the pill background)
+          └── div (Toggle thumb – the colored circle, uses toggleFillChecked)
+   The RED color lives on the Toggle thumb's backgroundColor via CSS-in-JS.
+   We override BOTH the thumb and track for a cohesive green appearance. */
+
+/* Green thumb (the circle) when toggle is checked */
+div[data-testid="stToggle"] [data-baseweb="checkbox"][aria-checked="true"]>div>div {
+    background-color: #0f9d58 !important;
+}
+
+/* Also target via role attribute directly */
+[role="checkbox"][aria-checked="true"]>div>div {
+    background-color: #0f9d58 !important;
+}
+
+/* Green track (the pill background) when toggle is checked – subtle darker green */
+div[data-testid="stToggle"] [data-baseweb="checkbox"][aria-checked="true"]>div {
+    background-color: rgba(15, 157, 88, 0.3) !important;
+}

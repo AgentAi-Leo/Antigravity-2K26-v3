@@ -142,10 +142,11 @@ def upload_file(file_path, folder_path, creds_path, share_with=None):
         print(f"ID: {file_id}")
         print(f"🔗 Link: {web_link}")
         
-        # Write purely parsable link and folder ID to stderr for calling scripts
+        # Write purely parsable link, folder ID, and file ID to stderr for calling scripts
         import sys
         sys.stderr.write(f"Link: {web_link}\n")
         sys.stderr.write(f"FolderID: {parent_id}\n")
+        sys.stderr.write(f"FileID: {file_id}\n")
 
         # 3. Handle Auto-sharing
         if share_with:

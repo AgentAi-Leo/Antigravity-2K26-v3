@@ -173,125 +173,378 @@ def trigger_duplicate_error():
 
 def cancel_processing():
     """Callback to instantly abort processing and clear the UI."""
+    # Kick off background cleanup of any already-uploaded Google Drive files from this batch
+    uploaded_ids = st.session_state.get("_uploaded_file_ids", [])
+    if uploaded_ids:
+        import threading
+        def cleanup_drive_files(ids_to_delete):
+            import subprocess
+            import os
+            import sys
+            try:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                delete_script = os.path.abspath(os.path.join(current_dir, "..", "_000-Basics", "Data-GoogleDrive", "scripts", "delete_from_drive.py"))
+                if not os.path.exists(delete_script):
+                    return
+                for file_id in ids_to_delete:
+                    # Run deletion in background
+                    subprocess.run([sys.executable, delete_script, "--id", file_id], capture_output=True)
+            except Exception as e:
+                pass
+                
+        threading.Thread(target=cleanup_drive_files, args=(list(uploaded_ids),), daemon=True).start()
+        st.session_state["_uploaded_file_ids"] = []
+
     # Since Streamlit reruns on click, this callback runs before the rest of the script.
     # We clear the active triggers so the script doesn't try to auto-run again on reload
-    set_skill_state("prev_upload_id", "CANCELLED")
     if get_skill_state("auto_open_result"):
         set_skill_state("auto_open_result", False)
 
 def trigger_processing_overlay():
     """Shows a centered processing banner with a dots animation and a cancel button."""
     placeholder = st.empty()
+    
+    # Pre-load completion sound as base64 for the JS polling callback
+    import base64 as _b64
+    _sound_b64 = ""
+    try:
+        _sound_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio", "BEEP-Subtle_call_connecte-Elevenlabs.mp3")
+        with open(_sound_path, "rb") as _sf:
+            _sound_b64 = _b64.b64encode(_sf.read()).decode()
+    except Exception:
+        pass
+    
     with placeholder.container():
-        st.markdown("""
-            <div class='processing-marker' style='pointer-events: auto; padding: 20px; padding-bottom: 60px; text-align: center;'>
-                <div style='line-height: 1.1; margin-bottom: 10px; font-size: 2rem; font-weight: bold; color: #a8ffdb; font-family: sans-serif;'>
-                    PROCESSING!<br>
-                    <span style='font-size: 1.2rem; opacity: 0.8; font-weight: normal; color: #88d4b4;'>Please stand by!</span>
-                </div>
-                <div class='dots-container'>
-                    <div class='dot'></div>
-                    <div class='dot'></div>
-                    <div class='dot'></div>
-                </div>
-                <div style='font-size: 0.9rem; color: #ffffff; font-weight: normal; margin-top: 15px; margin-bottom: 10px;'>
-                    Depending on file size: Could Take Up to 5 mins.
-                </div>
-            </div>
-            <style>
-                /* Style the actual parent Streamlit container to act as the dark modal box */
-                /* We use > div.element-container to prevent matching the global app container */
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) {
-                    position: fixed !important;
-                    top: 50% !important;
-                    left: 50% !important;
-                    transform: translate(-50%, -50%) !important;
-                    z-index: 999995 !important;
-                    width: 450px !important;
-                    background-color: rgba(10, 10, 15, 0.95) !important;
-                    border: 2px solid rgba(168, 255, 219, 0.3) !important;
-                    border-radius: 12px !important;
-                    box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), 0 0 15px rgba(168, 255, 219, 0.1) !important;
-                    backdrop-filter: blur(10px) !important;
-                    padding: 0 !important;
-                    overflow: visible !important;
-                }
-                
-                /* Target the child container holding the st.button */
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) > div:last-child {
-                    position: absolute !important;
-                    bottom: 15px !important;
-                    right: 15px !important;
-                    width: auto !important;
-                    z-index: 999999 !important;
-                }
-                
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) button[kind="secondary"] {
-                    background-color: rgba(200, 30, 30, 0.8) !important;
-                    color: rgba(255, 255, 255, 0.9) !important;
-                    border: 1px solid rgba(255, 100, 100, 0.4) !important;
-                    padding: 4px 12px !important;
-                    font-size: 10px !important;
-                    min-height: 0 !important;
-                    height: auto !important;
-                    font-weight: bold !important;
-                    letter-spacing: 0.5px !important;
-                    border-radius: 4px !important;
-                    transition: all 0.2s ease !important;
-                    box-shadow: none !important;
-                    width: auto !important;
-                    transform: scale(0.65) !important;
-                    transform-origin: bottom right !important;
-                }
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .processing-marker) button[kind="secondary"]:hover {
-                    color: #fff !important;
-                    border-color: #ffcccc !important;
-                    background-color: rgba(230, 50, 50, 0.9) !important;
-                    transform: scale(0.68) !important;
-                }
-            </style>
-            </style>
-        """, unsafe_allow_html=True)
+        # Hidden marker so other code can detect processing state
+        st.markdown("<div class='processing-marker' style='display:none;'></div>", unsafe_allow_html=True)
         # Add the actual interactive button over the HTML overlay
         st.button("CANCEL", on_click=cancel_processing, key=f"cancel_btn_{time.time()}", help="Immediately stop processing and discard results.")
         
-        # Inject Javascript to bind ESCAPE to the Cancel button
-        import streamlit.components.v1 as components
+        # Inject the overlay directly into document.body via JS to bypass
+        # Streamlit's container hierarchy (which breaks position:fixed).
+        # The hidden Streamlit CANCEL button above handles the actual callback.
+        import streamlit.components.v1 as components  # type: ignore[import-not-found]
         components.html("""
             <script>
+                // cache-buster: """ + str(time.time()) + """
                 const doc = window.parent.document;
-                const escListener = function(ev) {
-                    if (ev.key === 'Escape') {
-                        // Find the cancel button in the modal
-                        const modal = doc.querySelector('.processing-marker');
-                        if (modal) {
-                            const modalContainer = modal.closest('div[data-testid="stVerticalBlock"]');
-                            if (modalContainer) {
-                                const cancelBtn = modalContainer.querySelector('button[kind="secondary"]');
-                                if (cancelBtn) {
-                                    ev.preventDefault();
-                                    cancelBtn.click();
-                                }
+                
+                // Clean up stale elements from previous processing runs
+                // so the polling timer doesn't immediately self-destruct
+                doc.querySelectorAll('.centered-overlay-complete').forEach(el => el.remove());
+                const oldCompleteOverlay = doc.getElementById('ag-complete-overlay');
+                if (oldCompleteOverlay) oldCompleteOverlay.remove();
+                // Clear any previous polling interval
+                if (doc._agCleanupInterval) {
+                    const pw = doc.defaultView || window.parent;
+                    pw.clearInterval(doc._agCleanupInterval);
+                    doc._agCleanupInterval = null;
+                }
+                
+                // Store completion sound for later use by polling callback
+                doc._agCompletionSoundB64 = '""" + _sound_b64 + """';
+                
+                // Hide the Streamlit placeholder container off-screen
+                // (NOT zero dimensions, as that prevents button.click() from working)
+                const marker = doc.querySelector('.processing-marker');
+                if (marker) {
+                    const block = marker.closest('div[data-testid="stVerticalBlock"]');
+                    if (block) {
+                        block.style.cssText = 'position:fixed !important; left:-9999px !important; top:-9999px !important; opacity:0 !important;';
+                    }
+                }
+                
+                // Remove any previous overlay (in case of re-render)
+                const oldOverlay = doc.getElementById('ag-processing-overlay');
+                if (oldOverlay) oldOverlay.remove();
+                
+                // Create the overlay directly on document.body
+                const overlay = document.createElement('div');
+                overlay.id = 'ag-processing-overlay';
+                overlay.innerHTML = `
+                    <style>
+                        #ag-processing-overlay {
+                            position: fixed;
+                            top: 0; left: 0; width: 100vw; height: 100vh;
+                            z-index: 999990;
+                            display: flex; align-items: center; justify-content: center;
+                            background-color: rgba(0,0,0,0.5);
+                            pointer-events: auto;
+                        }
+                        #ag-processing-box {
+                            position: relative;
+                            width: 540px;
+                            background-color: rgba(10, 10, 15, 0.95);
+                            border: 2px solid rgba(136, 224, 228, 0.6);
+                            border-radius: 12px;
+                            box-shadow: 0 0 15px rgba(172, 240, 241, 0.3),
+                                        0 0 40px rgba(172, 240, 241, 0.15),
+                                        0 0 80px rgba(172, 240, 241, 0.08),
+                                        inset 0 0 20px rgba(172, 240, 241, 0.05);
+                            backdrop-filter: blur(10px);
+                            padding: 24px;
+                            padding-bottom: 70px;
+                            text-align: center;
+                        }
+                        #ag-processing-box .ag-title {
+                            line-height: 1.1; margin-bottom: 10px;
+                            font-size: 2rem; font-weight: bold;
+                            color: #a8ffdb; font-family: sans-serif;
+                        }
+                        #ag-processing-box .ag-subtitle {
+                            font-size: 1.2rem; opacity: 0.8;
+                            font-weight: normal; color: #88d4b4;
+                        }
+                        #ag-processing-box .ag-dots {
+                            display: flex; justify-content: center; gap: 8px; margin: 15px 0;
+                        }
+                        #ag-processing-box .ag-dot {
+                            width: 15px; height: 15px;
+                            background-color: #acf0f1; border-radius: 50%;
+                            animation: agDotPulse 1.4s infinite ease-in-out both;
+                        }
+                        #ag-processing-box .ag-dot:nth-child(1) { animation-delay: -0.32s; }
+                        #ag-processing-box .ag-dot:nth-child(2) { animation-delay: -0.16s; }
+                        @keyframes agDotPulse {
+                            0%, 80%, 100% { transform: scale(0); }
+                            40% { transform: scale(1.0); }
+                        }
+                        #ag-processing-box .ag-info {
+                            font-size: 0.9rem; color: #fff;
+                            font-weight: normal; margin-top: 15px;
+                        }
+                        #ag-cancel-btn {
+                            position: absolute; bottom: 15px; right: 15px;
+                            background-color: rgba(200,30,30,0.8);
+                            color: rgba(255,255,255,0.9);
+                            border: 1px solid rgba(255,100,100,0.4);
+                            padding: 4px 12px; font-size: 10px;
+                            font-weight: bold; letter-spacing: 0.5px;
+                            border-radius: 4px; cursor: pointer;
+                            transition: all 0.2s ease;
+                        }
+                        #ag-cancel-btn:hover {
+                            background-color: rgba(230,50,50,0.9);
+                            border-color: #ffcccc; color: #fff;
+                        }
+                    </style>
+                    <div id="ag-processing-box">
+                        <div class="ag-title">
+                            PROCESSING!<br>
+                            <span class="ag-subtitle">Please stand by!</span>
+                        </div>
+                        <div class="ag-dots">
+                            <div class="ag-dot"></div>
+                            <div class="ag-dot"></div>
+                            <div class="ag-dot"></div>
+                        </div>
+                        <div class="ag-info">Depending on file size: Could Take Up to 5 mins.</div>
+                        <button id="ag-cancel-btn">CANCEL</button>
+                    </div>
+                `;
+                doc.body.appendChild(overlay);
+                
+                // Helper: find and click the hidden Streamlit CANCEL button
+                function clickStreamlitCancel() {
+                    const m = doc.querySelector('.processing-marker');
+                    if (m) {
+                        const b = m.closest('div[data-testid="stVerticalBlock"]');
+                        if (b) {
+                            const btns = Array.from(b.querySelectorAll('button'));
+                            const cancel = btns.find(x => x.textContent && x.textContent.includes('CANCEL'));
+                            if (cancel) {
+                                cancel.click();
+                                // Also remove the overlay immediately for responsiveness
+                                const o = doc.getElementById('ag-processing-overlay');
+                                if (o) o.remove();
                             }
                         }
                     }
-                };
-                
-                // Add listener and ensure it doesn't duplicate
-                if (!doc._escBoundForCancel) {
-                    doc.addEventListener('keydown', escListener);
-                    doc._escBoundForCancel = true;
                 }
+                
+                // Bridge: JS CANCEL button → hidden Streamlit CANCEL button
+                doc.getElementById('ag-cancel-btn').addEventListener('click', clickStreamlitCancel);
+                
+                // ESCAPE key → CANCEL (remove old listener first to avoid stacking)
+                if (doc._agEscListener) {
+                    doc.removeEventListener('keydown', doc._agEscListener, true);
+                }
+                doc._agEscListener = function(ev) {
+                    if (ev.key === 'Escape' && doc.getElementById('ag-processing-overlay')) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        clickStreamlitCancel();
+                    }
+                };
+                doc.addEventListener('keydown', doc._agEscListener, true);
+                
+                // Auto-remove overlay when processing completes.
+                // CRITICAL: Use parent window's setInterval (not iframe's) because
+                // the iframe is moved offscreen and browsers throttle offscreen iframe timers.
+                const parentWin = doc.defaultView || window.parent;
+                const cleanupInterval = parentWin.setInterval(function() {
+                    const markerStillExists = doc.querySelector('.processing-marker');
+                    const completeShown = doc.querySelector('.centered-overlay-complete');
+                    if (!markerStillExists || completeShown) {
+                        const o = doc.getElementById('ag-processing-overlay');
+                        if (o) o.remove();
+                        parentWin.clearInterval(cleanupInterval);
+                        doc._agCleanupInterval = null;
+                        
+                        // Show COMPLETE overlay (embedded here so it doesn't depend on a separate iframe)
+                        if (!doc.getElementById('ag-complete-overlay')) {
+                            const cOverlay = document.createElement('div');
+                            cOverlay.id = 'ag-complete-overlay';
+                            cOverlay.innerHTML = `
+                                <style>
+                                    #ag-complete-overlay {
+                                        position: fixed;
+                                        top: 0; left: 0; width: 100vw; height: 100vh;
+                                        z-index: 999990;
+                                        display: flex; align-items: center; justify-content: center;
+                                        background-color: rgba(0,0,0,0.4);
+                                        pointer-events: none;
+                                        animation: agCompleteFade 2s ease-in-out forwards;
+                                    }
+                                    #ag-complete-box {
+                                        width: 540px;
+                                        background-color: rgba(10, 10, 15, 0.95);
+                                        border: 2px solid rgba(136, 224, 228, 0.6);
+                                        border-radius: 12px;
+                                        box-shadow: 0 0 15px rgba(172, 240, 241, 0.3),
+                                                    0 0 40px rgba(172, 240, 241, 0.15),
+                                                    0 0 80px rgba(172, 240, 241, 0.08);
+                                        padding: 30px;
+                                        text-align: center;
+                                        font-size: 2rem;
+                                        font-weight: bold;
+                                        color: #a8ffdb;
+                                        font-family: sans-serif;
+                                    }
+                                    @keyframes agCompleteFade {
+                                        0% { opacity: 1; }
+                                        70% { opacity: 1; }
+                                        100% { opacity: 0; }
+                                    }
+                                </style>
+                                <div id="ag-complete-box">COMPLETE!</div>
+                            `;
+                            doc.body.appendChild(cOverlay);
+                            parentWin.setTimeout(function() {
+                                const el = doc.getElementById('ag-complete-overlay');
+                                if (el) el.remove();
+                            }, 2100);
+                            
+                            // Play completion sound if available
+                            if (doc._agCompletionSoundB64) {
+                                try {
+                                    const audio = new Audio('data:audio/mp3;base64,' + doc._agCompletionSoundB64);
+                                    audio.volume = 0.5;
+                                    audio.play().catch(function() {});
+                                } catch(e) {}
+                            }
+                        }
+                    }
+                }, 500);
+                // Store interval ID so it can be cleared on subsequent processing runs
+                doc._agCleanupInterval = cleanupInterval;
             </script>
         """, height=0)
         
     return placeholder
 
 def trigger_complete_overlay(placeholder):
-    """Replaces processing banner with a complete banner that fades out."""
+    """Replaces processing banner with a complete banner that fades out, with sound."""
     if placeholder:
+        # Load the completion sound as base64
+        import base64 as _b64
+        _sound_b64 = ""
+        try:
+            _sound_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio", "BEEP-Subtle_call_connecte-Elevenlabs.mp3")
+            with open(_sound_path, "rb") as _sf:
+                _sound_b64 = _b64.b64encode(_sf.read()).decode()
+        except Exception:
+            pass
+        
         with placeholder:
-            st.markdown("<div class='centered-overlay-complete'>COMPLETE!</div>", unsafe_allow_html=True)
+            st.markdown("<div class='centered-overlay-complete' style='display:none;'></div>", unsafe_allow_html=True)
+            # Inject JS to remove the processing overlay and show COMPLETE on document.body
+            import streamlit.components.v1 as components  # type: ignore[import-not-found]
+            components.html(f"""
+                <script>
+                    const doc = window.parent.document;
+                    
+                    // Remove the processing overlay
+                    const procOverlay = doc.getElementById('ag-processing-overlay');
+                    if (procOverlay) procOverlay.remove();
+                    
+                    // Also unhide the Streamlit container (restore its style)
+                    const marker = doc.querySelector('.processing-marker');
+                    if (marker) {{
+                        const block = marker.closest('div[data-testid="stVerticalBlock"]');
+                        if (block) block.style.cssText = '';
+                    }}
+                    
+                    // Remove any old complete overlay
+                    const oldComplete = doc.getElementById('ag-complete-overlay');
+                    if (oldComplete) oldComplete.remove();
+                    
+                    // Play completion sound
+                    const soundB64 = "{_sound_b64}";
+                    if (soundB64) {{
+                        try {{
+                            const audio = new Audio('data:audio/mp3;base64,' + soundB64);
+                            audio.volume = 0.5;
+                            audio.play().catch(function() {{}});
+                        }} catch(e) {{}}
+                    }}
+                    
+                    // Create COMPLETE overlay on document.body
+                    const completeOverlay = document.createElement('div');
+                    completeOverlay.id = 'ag-complete-overlay';
+                    completeOverlay.innerHTML = `
+                        <style>
+                            #ag-complete-overlay {{
+                                position: fixed;
+                                top: 0; left: 0; width: 100vw; height: 100vh;
+                                z-index: 999990;
+                                display: flex; align-items: center; justify-content: center;
+                                background-color: rgba(0,0,0,0.4);
+                                pointer-events: none;
+                                animation: agCompleteFade 2s ease-in-out forwards;
+                            }}
+                            #ag-complete-box {{
+                                width: 540px;
+                                background-color: rgba(10, 10, 15, 0.95);
+                                border: 2px solid rgba(136, 224, 228, 0.6);
+                                border-radius: 12px;
+                                box-shadow: 0 0 15px rgba(172, 240, 241, 0.3),
+                                            0 0 40px rgba(172, 240, 241, 0.15),
+                                            0 0 80px rgba(172, 240, 241, 0.08);
+                                padding: 30px;
+                                text-align: center;
+                                font-size: 2rem;
+                                font-weight: bold;
+                                color: #a8ffdb;
+                                font-family: sans-serif;
+                            }}
+                            @keyframes agCompleteFade {{
+                                0% {{ opacity: 1; }}
+                                70% {{ opacity: 1; }}
+                                100% {{ opacity: 0; }}
+                            }}
+                        </style>
+                        <div id="ag-complete-box">COMPLETE!</div>
+                    `;
+                    doc.body.appendChild(completeOverlay);
+                    
+                    // Auto-remove after animation (2s)
+                    setTimeout(function() {{
+                        const el = doc.getElementById('ag-complete-overlay');
+                        if (el) el.remove();
+                    }}, 2100);
+                </script>
+            """, height=0)
 
 # -----------------------------------------------------------------------------
 # Helper: Process Audio/Video Transcription
@@ -353,6 +606,7 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
         # --- END DEBUG ---
         
         # Stream the output line by line into the UI
+        # Use a new process group so we can kill any sub-subprocesses (like Drive/Sheets uploads)
         process = subprocess.Popen(
             current_cmd, cwd=cwd, env=run_env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -373,11 +627,15 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             returncode = process.wait()
         finally:
             if process.poll() is None:
-                process.terminate()
+                import signal
                 try:
+                    process.terminate()
                     process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    process.kill()
+                except (subprocess.TimeoutExpired, ProcessLookupError):
+                    try:
+                        process.kill()
+                    except ProcessLookupError:
+                        pass
         
         # Combine everything for legacy parsing logic
         final_text = "".join(full_output)
@@ -398,12 +656,18 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             total_words += len(transcript.split()) # type: ignore[operator]
             
             # Capture Google IDs from combined output for badge direct-links
-            _machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "Auto-uploading", "Logging results", "Converting", "Warning:")
+            _machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "FileID:", "Auto-uploading", "Logging results", "Converting", "Warning:")
             for line in final_text.splitlines():
                 if line.startswith("FolderID:"):
                     st.session_state["_google_folder_id"] = line.split(":", 1)[1].strip()
                 elif line.startswith("SheetID:"):
                     st.session_state["_google_sheet_id"] = line.split(":", 1)[1].strip()
+                elif line.startswith("FileID:"):
+                    if "_uploaded_file_ids" not in st.session_state:
+                        st.session_state["_uploaded_file_ids"] = []
+                    f_id = line.split(":", 1)[1].strip()
+                    if f_id not in st.session_state["_uploaded_file_ids"]:
+                        st.session_state["_uploaded_file_ids"].append(f_id)
             
             # Show non-machine lines as warnings (but filter out machine-readable ones)
             # Since stdout and stderr are combined, this heuristic might catch script logs.
@@ -416,6 +680,7 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             
             results.append({
                 "name": os.path.basename(fp),
+                "original_name": os.path.basename(fp),
                 "bytes": open(fp, "rb").read() if os.path.exists(fp) else b"",
                 "transcript": transcript,
             })
@@ -1332,8 +1597,10 @@ is_embed_skill = selected_skill["basename"] == "AI-LLM-EmbedText"
 is_rag_skill = selected_skill["basename"] == "AI-LLM-RAGQuery"
 is_translate_skill = selected_skill["basename"] == "AI-LLM-TranslateText"
 
+col_head, col_toggle = st.columns([1, 1])
 if is_audio_skill:
-    st.subheader("Upload Audio Files", anchor=False)
+    with col_head:
+        st.subheader("Upload Audio Files", anchor=False)
     uploader_label = "Upload Audio Files"
     accepted_types = [
         "mp3", "wav", "m4a", "aac", "ogg", "flac", "webm",
@@ -1341,18 +1608,45 @@ if is_audio_skill:
         "mp4", "mov", "avi", "mkv"
     ]
 elif is_tts_skill:
-    st.subheader("Upload Text Files for Narration", anchor=False)
+    with col_head:
+        st.subheader("Upload Text Files for Narration", anchor=False)
     uploader_label = "Upload Text Files"
     st.caption("ElevenLabs cleanly auto-extracts text from Plain Text, Markdown, RTF, DOC, and DOCX files for narration.")
     accepted_types = [
         "txt", "md", "rtf", "doc", "docx", "csv", "json", "py", "sh", "yaml", "yml", "ini"
     ]
 else:
-    st.subheader("Upload Document Files", anchor=False)
+    with col_head:
+        st.subheader("Upload Document Files", anchor=False)
     uploader_label = "Upload Document Files"
     accepted_types = [
         "txt", "md", "docx", "doc", "csv", "json", "rtf", "py", "sh", "yaml", "yml"
     ]
+
+safety_net_on = False
+if is_audio_skill or is_tts_skill:
+    with col_toggle:
+        st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+        safety_net_on = st.toggle("SAVE TO GOOGLE ACCT", value=False, help="Saves to Google Drive & Sheet")
+        
+        # Style the toggle to be single-line, right-aligned, and green when active
+        st.markdown("""
+            <style>
+            /* Force the toggle label to be on a single line and right align the whole component */
+            div[data-testid="column"]:nth-child(2) {
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+            }
+            div[data-testid="column"]:nth-child(2) div[data-testid="stToggle"] {
+                white-space: nowrap;
+                width: max-content;
+                float: right;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        # Toggle green color is handled by CSS in style.css (section 19)
 
 # --- Duplicate Checking Logic ---
 def check_new_uploads_for_duplicates(file_list):
@@ -1413,62 +1707,90 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
     def copy_folder_to_sheet():
         st.session_state["google_sheet_input"] = st.session_state.get("drive_folder_input", "")
 
-    col1, col_btn, col2 = st.columns([3, 1, 3])
-    with col1:
-        skill_args["drive_folder"] = st.text_input(
-            "Google Drive Folder (Optional):", 
-            placeholder="e.g. AI-Audio/Podcasts",
-            key="drive_folder_input"
-        )
-    with col_btn:
-        st.write("") # Spacer
-        st.button(
-            "Copy ➜", 
-            on_click=copy_folder_to_sheet, 
-            help="Copy Folder Name to Sheet Name",
-            use_container_width=True
-        )
-        
-        # Streamlit doesn't support custom button colors natively without 'type'.
-        # We target the button specifically within this column to make it yellow and push it down to align with inputs.
+    if safety_net_on:
+        # Create a hidden marker div to anchor our CSS sibling selectors
+        st.markdown('<div id="safety-net-marker" style="display:none;"></div>', unsafe_allow_html=True)
         st.markdown(
             """
             <style>
-            div[data-testid="column"]:nth-of-type(2) {
-                display: flex;
-                align-items: flex-end; /* push to bottom of row to match input boxes */
-                padding-bottom: 2px;
+            @keyframes softFadeIn {
+                0% { opacity: 0; transform: translateY(-8px); }
+                100% { opacity: 1; transform: translateY(0); }
             }
-            div[data-testid="column"]:nth-of-type(2) .stButton > button {
-                background-color: #ffd700 !important;
-                color: #111 !important;
-                font-weight: 700 !important;
-                border: none !important;
-                transition: transform 0.2s !important;
-                margin-top: 28px !important; /* height of the label above inputs */
+            /* Target the columns container and the email text_input that immediately follow the marker */
+            /* Streamlit wraps markdown in an iframe-like div, so we target the parent's siblings */
+            div[data-testid="stMarkdownContainer"]:has(#safety-net-marker) {
+                display: none;
             }
-            div[data-testid="column"]:nth-of-type(2) .stButton > button:hover {
-                background-color: #ffe44d !important;
-                color: #000 !important;
-                border: none !important;
-                transform: scale(1.02) !important;
+            div[data-testid="stVerticalBlock"] > div:has(> div > div > div > div#safety-net-marker) ~ div {
+                animation: softFadeIn 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            }
+            /* Specifically target the next 2 blocks (columns and email input) just in case */
+            div[data-testid="stVerticalBlock"] > div:has(> div > div > div > div#safety-net-marker) + div,
+            div[data-testid="stVerticalBlock"] > div:has(> div > div > div > div#safety-net-marker) + div + div {
+                animation: softFadeIn 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
             }
             </style>
             """,
             unsafe_allow_html=True
         )
-    with col2:
-        skill_args["google_sheet"] = st.text_input(
-            "Google Sheet Name (Optional):", 
-            placeholder="e.g. Transcription Database",
-            key="google_sheet_input"
-        )
-    
-    default_email = st.session_state.get("GCP_USER_EMAIL", os.environ.get("GCP_USER_EMAIL", ""))
-    skill_args["share_with"] = st.text_input("User Email for Auto-Sharing (Optional):", 
-                                            value=default_email,
-                                            type="password",
-                                            placeholder="e.g. user@gmail.com")
+        
+        col1, col_btn, col2 = st.columns([3, 1, 3])
+        with col1:
+            skill_args["drive_folder"] = st.text_input(
+                "Google Drive Folder (Optional):", 
+                placeholder="e.g. AI-Audio/Podcasts",
+                key="drive_folder_input"
+            )
+        with col_btn:
+            st.write("") # Spacer
+            st.button(
+                "Copy ➜", 
+                on_click=copy_folder_to_sheet, 
+                help="Copy Folder Name to Sheet Name",
+                use_container_width=True
+            )
+            
+            # Streamlit doesn't support custom button colors natively without 'type'.
+            # We target the button specifically within this column to make it yellow and push it down to align with inputs.
+            st.markdown(
+                """
+                <style>
+                div[data-testid="column"]:nth-of-type(2) {
+                    display: flex;
+                    align-items: flex-end; /* push to bottom of row to match input boxes */
+                    padding-bottom: 2px;
+                }
+                div[data-testid="column"]:nth-of-type(2) .stButton > button {
+                    background-color: #ffd700 !important;
+                    color: #111 !important;
+                    font-weight: 700 !important;
+                    border: none !important;
+                    transition: transform 0.2s !important;
+                    margin-top: 28px !important; /* height of the label above inputs */
+                }
+                div[data-testid="column"]:nth-of-type(2) .stButton > button:hover {
+                    background-color: #ffe44d !important;
+                    color: #000 !important;
+                    border: none !important;
+                    transform: scale(1.02) !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+        with col2:
+            skill_args["google_sheet"] = st.text_input(
+                "Google Sheet Name (Optional):", 
+                placeholder="e.g. Transcription Database",
+                key="google_sheet_input"
+            )
+        
+        default_email = st.session_state.get("GCP_USER_EMAIL", os.environ.get("GCP_USER_EMAIL", ""))
+        skill_args["share_with"] = st.text_input("User Email for Auto-Sharing (Optional):", 
+                                                value=default_email,
+                                                type="password",
+                                                placeholder="e.g. user@gmail.com")
     # Show direct-link badges ONLY after a successful upload has stored real IDs
     _has_folder_id = bool(st.session_state.get("_google_folder_id"))
     _has_sheet_id = bool(st.session_state.get("_google_sheet_id"))
@@ -1541,7 +1863,7 @@ uploaded_files = check_new_uploads_for_duplicates(uploaded_files if uploaded_fil
         
 if uploaded_files:
     file_names = ", ".join([f.name for f in uploaded_files])
-    st.success(f"📎 {len(uploaded_files)} file(s) uploaded: **{file_names}**")
+    set_skill_state("_upload_status_msg", f"📎 {len(uploaded_files)} file(s) uploaded: **{file_names}**")
 
 # Detect if a NEW file was just uploaded (auto-run trigger)
 # Auto-run for ALL files over riding the previous logic
@@ -1746,6 +2068,24 @@ if should_run:
         args_input = f"--url \"{url_input}\""
         if html_capture:
             args_input += " --capture"
+            
+    # --- Safety Net Fallback Auto-Injection ---
+    if safety_net_on:
+        valid_skills_for_safety = ["AI-LLM-Speech2Text", "AI-LLM-KIE-ElevenLabs-Speech2Text", "AI-LLM-Text2Speech", "AI-LLM-KIE-ElevenLabs-Text2Speech"]
+        if selected_skill and selected_skill.get("basename") in valid_skills_for_safety:
+            need_fallback = not skill_args.get("drive_folder") or not skill_args.get("google_sheet")
+            if need_fallback:
+                # Initialize or get increment counter
+                idx = st.session_state.get("_unnamed_counter", 1)
+                default_name = f"UnNamed-{idx}"
+                
+                if not skill_args.get("drive_folder"):
+                    skill_args["drive_folder"] = default_name
+                if not skill_args.get("google_sheet"):
+                    skill_args["google_sheet"] = default_name
+                    
+                # Increment for next time
+                st.session_state["_unnamed_counter"] = idx + 1
     
     # Handle uploaded files by saving them to a temporary directory so the script can read them
     temp_dir = None
@@ -1757,6 +2097,16 @@ if should_run:
         
         # Combine uploaded files and manual text
         files_to_process_objs = [uf for uf in uploaded_files if (uf.name + str(uf.size)) not in processed]
+        
+        # Deduplicate by name+size (Streamlit uploader can accumulate duplicate entries)
+        _seen_ids: set[str] = set()
+        _deduped: list = []
+        for uf in files_to_process_objs:
+            _fid = uf.name + str(uf.size)
+            if _fid not in _seen_ids:
+                _seen_ids.add(_fid)
+                _deduped.append(uf)
+        files_to_process_objs = _deduped
         
         if not files_to_process_objs and not url_input and not manual_text and not skill_args.get("text") and not has_special_input:
             should_run = False # Cancel execution if no new files, no URL, no manual text
@@ -1832,10 +2182,9 @@ if should_run:
     # Use manual status instead of with st.spinner so we can clear it before st.stop()
     output_expander = st.expander("📄 Output", expanded=False)
     
-    # Reset the playlist/gallery at the start of a fresh processing batch
-    # This addresses the "Viewing 1 of 4" issue and prevents result leakage.
-    set_skill_state("last_processed_files", [])
-    set_skill_state("file_index", 0)
+    # NOTE: We no longer reset last_processed_files here — clips accumulate
+    # across batches within the session. The file_index is set after processing
+    # to point at the start of the newest batch (see line ~2231).
     
     proc_overlay = trigger_processing_overlay()
     with output_expander:
@@ -1863,6 +2212,7 @@ if should_run:
                 existing = get_skill_state("last_processed_files", [])
                 existing.extend(new_files)
                 set_skill_state("last_processed_files", existing)
+                
                 if new_files:
                     # Successfully processed these files, safe to add them to the processed duplicate tracker
                     processed = get_skill_state("processed_files", set())
@@ -1879,7 +2229,9 @@ if should_run:
                     set_skill_state("file_index", max(0, len(existing) - len(new_files)))
                     set_skill_state("last_output", new_files[0]["transcript"])
                     set_skill_state("auto_open_result", True)
-                    st.success(f"✅ Successfully processed {len(file_paths)} file(s)")
+                    _msg = f"✅ Successfully processed {len(file_paths)} file(s)"
+                    st.success(_msg)
+                    set_skill_state("_last_success_msg", _msg)
             elif is_tts_skill and file_paths:
                 new_files = process_tts_files(file_paths, selected_skill, run_env, 
                                               base_args_input=locals().get("base_args_input", args_input),
@@ -1894,7 +2246,9 @@ if should_run:
                     set_skill_state("file_index", max(0, len(existing) - len(new_files)))
                     set_skill_state("last_output", new_files[0]["transcript"])
                     set_skill_state("auto_open_result", True)
-                    st.success(f"✅ Successfully converted {len(file_paths)} document(s) to audio")
+                    _msg = f"✅ Successfully converted {len(file_paths)} document(s) to audio"
+                    st.success(_msg)
+                    set_skill_state("_last_success_msg", _msg)
             else:
                 # Standard execution PATH
                 all_execution_results = []
@@ -1991,7 +2345,7 @@ if should_run:
                         if fp:
                             ext = os.path.splitext(fp)[1].lower()
                             if ext in [".txt", ".rtf", ".md", ".docx", ".doc", ".rtfd"] or (ext != ".pdf" and os.path.getsize(fp) < 1024 * 1024):
-                                content_preview = read_text_file_preview(fp)
+                                content_preview = read_text_file_preview(str(fp))
 
                         # Clean output (filter success messages)
                         ignore_prefixes = ("Transcribing:", "Saved:", "Fetching:", "Capturing:", "Capturing high-fidelity", "Usage:")
@@ -2055,7 +2409,9 @@ if should_run:
                     set_skill_state("file_index", 0)
                     set_skill_state("last_output", last_processed_files[0]["transcript"])
                     set_skill_state("auto_open_result", True)
-                    st.success(f"✅ Successfully processed {len(all_execution_results)} item(s)")
+                    _msg = f"✅ Successfully processed {len(all_execution_results)} item(s)"
+                    st.success(_msg)
+                    set_skill_state("_last_success_msg", _msg)
                     
         except Exception as e:
             st.error(f"❌ Error executing skill: {str(e)}")
@@ -2063,6 +2419,16 @@ if should_run:
             main_spinner.empty()
             trigger_complete_overlay(proc_overlay)
             time.sleep(2)
+
+# --- Persistent Output Expander (always rendered, survives MY CLIPS navigation) ---
+_stored_upload_msg = get_skill_state("_upload_status_msg", "") if selected_skill else ""
+_stored_success_msg = get_skill_state("_last_success_msg", "") if selected_skill else ""
+if _stored_upload_msg or _stored_success_msg:
+    with st.expander("📄 Output", expanded=False):
+        if _stored_upload_msg:
+            st.success(_stored_upload_msg)
+        if _stored_success_msg:
+            st.success(_stored_success_msg)
 
 # -----------------------------------------------------------------------------
 # 5. Result Display (Inline instead of Popup)

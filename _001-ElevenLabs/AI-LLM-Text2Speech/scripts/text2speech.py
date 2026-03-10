@@ -128,6 +128,10 @@ def main():
                     )
                     if res.returncode == 0:
                         print(res.stdout, file=sys.stdout)
+                        # Propagate folder and file IDs
+                        for line in res.stderr.splitlines():
+                            if "FolderID:" in line or "FileID:" in line:
+                                sys.stderr.write(line + "\n")
                     else:
                         print(f"Warning: Drive upload failed: {res.stderr}", file=sys.stderr)
                 else:
