@@ -460,26 +460,13 @@ div[data-testid="stStatusWidget"] {
 }
 
 /* 19. SAVE TO GOOGLE ACCT Toggle – Force Green When Active */
-/* Streamlit 1.54 toggle structure (from source: checkbox.BKgfzJZV.js):
-   div[data-baseweb="checkbox"][role="checkbox"]  (Root)
-     └── div (ToggleTrack – the pill background)
-          └── div (Toggle thumb – the colored circle, uses toggleFillChecked)
-   The RED color lives on the Toggle thumb's backgroundColor via CSS-in-JS.
-   We override BOTH the thumb and track for a cohesive green appearance. */
+/* Streamlit's CSS-in-JS sets the red color as an inline style which CSS can't override.
+   Instead, we use filter: hue-rotate() to visually shift red → green at the rendering layer.
+   hue-rotate(120deg) moves red (0°) to green (120°). saturate + brightness tweak the shade. */
 
-/* Green thumb (the circle) when toggle is checked */
-div[data-testid="stToggle"] [data-baseweb="checkbox"][aria-checked="true"]>div>div {
-    background-color: #0f9d58 !important;
-}
-
-/* Also target via role attribute directly */
-[role="checkbox"][aria-checked="true"]>div>div {
-    background-color: #0f9d58 !important;
-}
-
-/* Green track (the pill background) when toggle is checked – subtle darker green */
-div[data-testid="stToggle"] [data-baseweb="checkbox"][aria-checked="true"]>div {
-    background-color: rgba(15, 157, 88, 0.3) !important;
+div[data-testid="stToggle"] [data-baseweb="checkbox"][aria-checked="true"],
+[role="checkbox"][aria-checked="true"] {
+    filter: hue-rotate(120deg) saturate(1.3) brightness(1.1) !important;
 }
 
 /* 20. Hide Data Expanders (code kept in app.py, hidden via marker class) */

@@ -1285,7 +1285,9 @@ def check_password():
     
     with st.form("login_form", clear_on_submit=False, border=False):
         st.markdown('<div class="password-container">', unsafe_allow_html=True)
-        password = st.text_input("Password", type="password", placeholder="Enter Password", label_visibility="collapsed")
+        _pw_col, _pw_spacer = st.columns([13, 7])
+        with _pw_col:
+            password = st.text_input("Password", type="password", placeholder="Enter Password", label_visibility="collapsed")
         
         # Keybind TAB to focus the password input field
         st.components.v1.html(
@@ -1438,7 +1440,175 @@ def discover_skills():
 skills = discover_skills()
 
 st.sidebar.title("🚀 Antigravity Skills", anchor=False)
-st.sidebar.markdown(f"**{len(skills)} skills loaded**")
+
+# --- Theme Toggle (Light/Dark) on same line as skills count ---
+if "theme_mode" not in st.session_state:
+    st.session_state["theme_mode"] = "dark"
+
+_info_col, _toggle_col = st.sidebar.columns([3, 1])
+with _info_col:
+    st.markdown(f"**{len(skills)} skills loaded**")
+with _toggle_col:
+    _is_light = st.toggle("☀️", value=st.session_state.get("theme_mode") == "light", key="_theme_toggle",
+                           help="Switch between Light and Dark mode")
+    st.session_state["theme_mode"] = "light" if _is_light else "dark"
+
+# Style the theme toggle sun icon larger (25px)
+st.markdown("""
+<style>
+[data-testid="stSidebar"] div[data-testid="stToggle"][class*=""] label p {
+    font-size: 25px !important;
+    line-height: 1 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Spacer between toggle row and search
+st.sidebar.markdown("<div style='margin-bottom: 11px;'></div>", unsafe_allow_html=True)
+
+if st.session_state["theme_mode"] == "light":
+    st.markdown("""
+    <style>
+    /* ── Light Mode Overrides ── */
+    /* Main background */
+    .stApp, [data-testid="stAppViewContainer"], section[data-testid="stMain"] {
+        background-color: #ffffff !important;
+        color: #1a1a1a !important;
+    }
+    /* Top header bar */
+    header[data-testid="stHeader"] {
+        background-color: #ffffff !important;
+    }
+
+    /* ── SIDEBAR ── */
+    /* Sidebar background */
+    [data-testid="stSidebar"], [data-testid="stSidebar"] > div {
+        background-color: #666668 !important;
+    }
+    /* Sidebar text — white for readability on dark grey bg */
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] > div > div > div > div > p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] span,
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] strong {
+        color: #ffffff !important;
+    }
+    /* Sidebar buttons — all consistent lighter grey */
+    [data-testid="stSidebar"] .stButton > button {
+        background-color: #828589 !important;
+        color: #ffffff !important;
+        border-color: #828589 !important;
+    }
+    [data-testid="stSidebar"] .stButton > button p,
+    [data-testid="stSidebar"] .stButton > button span {
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background-color: #595959 !important;
+        border-color: #595959 !important;
+    }
+    /* Sidebar expander — header dark grey, content area lighter */
+    [data-testid="stSidebar"] [data-testid="stExpander"] {
+        background-color: #5d5e61 !important;
+        border-color: #606367 !important;
+        border-radius: 8px !important;
+        overflow: hidden;
+    }
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary {
+        background-color: #43484e !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary span,
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary p,
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary svg {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+    }
+    /* Sidebar search input */
+    [data-testid="stSidebar"] input {
+        background-color: #ffffff !important;
+        color: #1a1a1a !important;
+        border-color: #999 !important;
+    }
+    /* Sidebar horizontal rules */
+    [data-testid="stSidebar"] hr {
+        border-color: #999 !important;
+    }
+    /* Sidebar close/collapse button */
+    [data-testid="stSidebar"] button[kind="header"] {
+        color: #1a1a1a !important;
+    }
+    /* Sidebar success/warning alerts — darker for readability */
+    [data-testid="stSidebar"] [data-testid="stAlert"] {
+        background-color: rgba(15, 130, 60, 0.45) !important;
+        border-color: #0a7a3a !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stAlert"] p,
+    [data-testid="stSidebar"] [data-testid="stAlert"] span,
+    [data-testid="stSidebar"] [data-testid="stAlert"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stSidebar"] [data-testid="stAlert"] [data-testid="stMarkdownContainer"] span,
+    [data-testid="stSidebar"] [data-testid="stAlert"] * {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+
+    /* ── MAIN CONTENT ── */
+    /* Text */
+    .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp p, .stApp label, .stApp li {
+        color: #1a1a1a !important;
+    }
+    /* Input fields & text areas */
+    .stApp input, .stApp textarea {
+        background-color: #f7f7f8 !important;
+        color: #1a1a1a !important;
+        border-color: #d0d0d0 !important;
+    }
+    /* Main content expanders */
+    section[data-testid="stMain"] [data-testid="stExpander"] {
+        background-color: #f0f1f3 !important;
+        border-color: #d0d0d0 !important;
+    }
+    section[data-testid="stMain"] [data-testid="stExpander"] summary span {
+        color: #1a1a1a !important;
+    }
+    /* File uploader */
+    .stApp [data-testid="stFileUploader"] section {
+        background-color: #f7f7f8 !important;
+        border-color: #d0d0d0 !important;
+    }
+    .stApp [data-testid="stFileUploader"] section small,
+    .stApp [data-testid="stFileUploader"] section span {
+        color: #555 !important;
+    }
+    /* Select boxes / dropdowns */
+    .stApp [data-baseweb="select"],
+    .stApp [data-baseweb="select"] div {
+        background-color: #f7f7f8 !important;
+        color: #1a1a1a !important;
+    }
+    /* Markdown containers */
+    .stApp [data-testid="stMarkdownContainer"] {
+        color: #1a1a1a !important;
+    }
+    /* Transcript box */
+    .transcript-box {
+        background-color: #f0f0f0 !important;
+        color: #1a1a1a !important;
+        border-color: #cccccc !important;
+    }
+    /* Info/alert boxes — ensure text readable */
+    .stApp [data-testid="stAlert"] p {
+        color: inherit !important;
+    }
+    /* Toggle visibility in light mode — use filter to darken at render layer */
+    section[data-testid="stMain"] [data-testid="stToggle"] [role="checkbox"][aria-checked="false"] {
+        filter: invert(0.5) contrast(1.3) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # Add Search Box
 query_params = st.query_params
@@ -1662,7 +1832,7 @@ if is_audio_skill or is_tts_skill:
         st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
         safety_net_on = st.toggle("SAVE TO GOOGLE ACCT", value=False, help="Saves to Google Drive & Sheet")
         
-        # Style the toggle to be single-line, right-aligned, and green when active
+        # Style the toggle to be single-line, right-aligned
         st.markdown("""
             <style>
             /* Force the toggle label to be on a single line and right align the whole component */
@@ -1679,7 +1849,7 @@ if is_audio_skill or is_tts_skill:
             </style>
         """, unsafe_allow_html=True)
         
-        # Toggle green color is handled by CSS in style.css (section 19)
+        # Toggle green color is handled by CSS hue-rotate filter in style.css (section 19)
 
 # --- Duplicate Checking Logic ---
 def check_new_uploads_for_duplicates(file_list):
