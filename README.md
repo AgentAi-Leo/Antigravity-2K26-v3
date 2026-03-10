@@ -15,6 +15,9 @@ Adds:
     - Google Sheet Columns (Headers) & Cell Width Adjustments
     - Google Sheets Auto-Hover Notes for Long Text Cells
     - Finessing Input Details On Uploader & Error Messages
+    - Fixed Sebsequent Uploading Issues - FINALLY! 
+    - Update Sheets w/Meta Data (Include IDs/Paths/etc)
+
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
