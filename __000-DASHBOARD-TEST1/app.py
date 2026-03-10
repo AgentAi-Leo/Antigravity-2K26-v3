@@ -1460,12 +1460,12 @@ with _info_col:
 with _icon_col:
     if _current_light:
         st.components.v1.html(
-            '<div style="font-size:30px; text-align:center; line-height:1; margin-top:2px;">☀️</div>',
+            '<div style="font-size:30px; text-align:center; margin-left:-5px; line-height:1; margin-top:2px;">☀️</div>',
             height=35
         )
     else:
         st.components.v1.html(
-            '<div style="font-size:30px; text-align:center; color:#5b9bd5; '
+            '<div style="font-size:30px; text-align:center; color:#5b9bd5; margin-left:-5px; '
             'transform:scaleX(-1); line-height:1; margin-top:2px;">☾</div>',
             height=35
         )
