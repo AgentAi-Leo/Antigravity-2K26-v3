@@ -20,9 +20,10 @@ Adds:
     - Styling: Increased Size of Processing File Overlay & Dimmed Background
     - Updating Speech2Text to Include Google Drive & Sheets Support
     - GREEN Toggle Button FIX!!!
-    - Added Light/Dark Mode - Challenges with Toggle Button In Ligh Mode
-    - Light Mode OVerall Just Looks Okay  Needs Way More Work Honestly!
-    - ...
+    - Added Light/Dark Mode Toggle Button
+    - Light Mode OVerall Okay But Still Needs Way More Work Honestly!
+    - Challenges with Google Drive & Sheets Toggle Button In LightMode
+    - Made Password Button Nicer/Smaller
     -
 
 

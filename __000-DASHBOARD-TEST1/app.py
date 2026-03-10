@@ -1285,9 +1285,10 @@ def check_password():
     
     with st.form("login_form", clear_on_submit=False, border=False):
         st.markdown('<div class="password-container">', unsafe_allow_html=True)
-        _pw_col, _pw_spacer = st.columns([13, 7])
+        _pw_col, _pw_spacer = st.columns([11, 9])
         with _pw_col:
             password = st.text_input("Password", type="password", placeholder="Enter Password", label_visibility="collapsed")
+            st.markdown("<span style='color: #FFE300; font-size: 0.85em;'>Press Enter to submit</span>", unsafe_allow_html=True)
         
         # Keybind TAB to focus the password input field
         st.components.v1.html(
@@ -1439,7 +1440,11 @@ def discover_skills():
 # -----------------------------------------------------------------------------
 skills = discover_skills()
 
-st.sidebar.title("🚀 Antigravity Skills", anchor=False)
+st.sidebar.markdown(
+    '<div style="color: white; font-size: 1.75rem; font-weight: 700; '
+    'line-height: 1.2; padding: 0.75rem 0 0.25rem 0;">🚀 Antigravity Skills</div>',
+    unsafe_allow_html=True
+)
 
 # --- Theme Toggle (Light/Dark) on same line as skills count ---
 if "theme_mode" not in st.session_state:
@@ -1447,11 +1452,21 @@ if "theme_mode" not in st.session_state:
 
 _info_col, _toggle_col = st.sidebar.columns([3, 1])
 with _info_col:
-    st.markdown(f"**{len(skills)} skills loaded**")
+    st.markdown(f"<div style='text-align: center; color: white;'><b>{len(skills)} skills loaded</b></div>", unsafe_allow_html=True)
 with _toggle_col:
-    _is_light = st.toggle("☀️", value=st.session_state.get("theme_mode") == "light", key="_theme_toggle",
-                           help="Switch between Light and Dark mode")
+    _is_light = st.toggle("", value=st.session_state.get("theme_mode") == "light", key="_theme_toggle", label_visibility="collapsed")
     st.session_state["theme_mode"] = "light" if _is_light else "dark"
+    if _is_light:
+        st.components.v1.html(
+            '<div style="font-size:30px; text-align:center; line-height:1;">☀️</div>',
+            height=42
+        )
+    else:
+        st.components.v1.html(
+            '<div style="font-size:30px; text-align:center; color:#5b9bd5; '
+            'transform:scaleX(-1); line-height:1;">☾</div>',
+            height=42
+        )
 
 # Style the theme toggle sun icon larger (25px)
 st.markdown("""

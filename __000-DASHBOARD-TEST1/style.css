@@ -302,6 +302,11 @@ button svg,
     margin: 0 auto;
 }
 
+/* Hide Streamlit's built-in 'Press Enter to submit form' — we'll add our own */
+.stForm [data-testid="InputInstructions"] {
+    display: none !important;
+}
+
 /* 10. DETERMINISTIC PLAYLIST STYLING (Surgical Marker Technique) */
 /* Targets the button ONLY inside the specific container where we injected the marker */
 /* Use a very specific path to avoid greedily catching navigation/download buttons */
