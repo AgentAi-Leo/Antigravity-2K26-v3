@@ -1,6 +1,6 @@
 ---
-name: speech-to-text-with-ai
-description: Transcribes audio or video files to text using Gemini's native audio model or OpenAI Whisper. Outputs plain text or SRT subtitles. Use when the user asks to transcribe audio, convert speech to text, transcribe a video, or generate subtitles.
+name:
+description: Transcribes audio or video files to specified Google Drive and Google Sheet. Outputs in plain text, PDF and SRT subtitles. Batched files also allowed.
 ---
 
 # AI-LLM-Speech2Text Skill

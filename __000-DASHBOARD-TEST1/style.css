@@ -481,3 +481,8 @@ div[data-testid="stToggle"] [data-baseweb="checkbox"][aria-checked="true"]>div>d
 div[data-testid="stToggle"] [data-baseweb="checkbox"][aria-checked="true"]>div {
     background-color: rgba(15, 157, 88, 0.3) !important;
 }
+
+/* 20. Hide Data Expanders (code kept in app.py, hidden via marker class) */
+.hidden-data-expander {
+    display: none !important;
+}

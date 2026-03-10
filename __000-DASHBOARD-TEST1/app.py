@@ -41,9 +41,10 @@ def load_css():
             css_content = f"/* {time.time()} */\n" + f.read()
             st.markdown(f"<style>{css_content}</style>", unsafe_allow_html=True)
 
-def render_speed_controls(skill_id=None, stats_text=""):
+def render_speed_controls(skill_id=None, stats_text="", clip_name=""):
     skill_val = f"'{skill_id}'" if skill_id else "null"
     import html as _html
+    safe_clip = _html.escape(clip_name) if clip_name else ""
     stats_html = ""
     if stats_text:
         safe_stats = _html.escape(stats_text)
@@ -100,6 +101,7 @@ def render_speed_controls(skill_id=None, stats_text=""):
         </div>
         <script>
             const currentSkillId = {skill_val};
+            const clipName = '{safe_clip}';
             
             if (currentSkillId) {{
                 // sessionStorage only persists during the tab session (lost on close)
@@ -144,10 +146,21 @@ def render_speed_controls(skill_id=None, stats_text=""):
 
             const applyStoredSpeed = () => {{
                 const savedSpeed = parseFloat(localStorage.getItem('audioPlaybackSpeed') || '1.0');
+                const volKey = clipName ? ('ag_vol_' + clipName) : 'ag_audio_vol';
+                const savedVol = parseFloat(localStorage.getItem(volKey));
+                const vol = isNaN(savedVol) ? 0.45 : savedVol;
                 const audios = window.parent.document.querySelectorAll('audio');
                 audios.forEach(a => {{
                     if (Math.abs(a.playbackRate - savedSpeed) > 0.01) {{
                         a.playbackRate = savedSpeed;
+                    }}
+                    // Apply saved volume and attach listener (once per element)
+                    if (!a._agVolBound) {{
+                        a.volume = vol;
+                        a._agVolBound = true;
+                        a.addEventListener('volumechange', function() {{
+                            localStorage.setItem(volKey, String(a.volume));
+                        }});
                     }}
                 }});
                 updateButtons(savedSpeed);
@@ -648,7 +661,15 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
         
         transcript = ""
         if returncode == 0:
-            ignore_prefixes = ("Transcribing:", "Saved:", "Usage:")
+            ignore_prefixes = (
+                "Transcribing:", "Saved:", "Usage:",
+                # Google Drive/Sheet machine-readable lines (toggle ON output)
+                "FolderID:", "FileID:", "SheetID:", "Link:", "ID:",
+                "Auto-uploading", "Logging results", "Converting",
+                "Creating folder:", "Uploading ", "Warning:",
+                "Sharing file with", "Sharing '",
+                "✅ Upload", "✅ Appended", "🔗 Link:",
+            )
             lines = [l for l in final_text.splitlines() if not l.startswith(ignore_prefixes)]
             transcript = "\n".join(lines).strip()
             
@@ -1791,20 +1812,8 @@ if selected_skill and selected_skill.get("basename") in ["AI-LLM-Speech2Text", "
                                                 value=default_email,
                                                 type="password",
                                                 placeholder="e.g. user@gmail.com")
-    # Show direct-link badges ONLY after a successful upload has stored real IDs
-    _has_folder_id = bool(st.session_state.get("_google_folder_id"))
-    _has_sheet_id = bool(st.session_state.get("_google_sheet_id"))
-    if _has_folder_id or _has_sheet_id:
-        badge_html = '<style>@keyframes badgeFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>'
-        badge_html += '<div style="display:flex;gap:10px;margin:8px 0 4px 0;animation:badgeFadeIn 1s ease-out;">'
-        if _has_folder_id:
-            drive_url = f"https://drive.google.com/drive/folders/{st.session_state['_google_folder_id']}"
-            badge_html += f'<a href="{drive_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1a73e8;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📁 Google Drive</a>'
-        if _has_sheet_id:
-            sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state['_google_sheet_id']}"
-            badge_html += f'<a href="{sheet_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#0f9d58;color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;font-family:sans-serif;">📊 Google Sheet</a>'
-        badge_html += '</div>'
-        st.markdown(badge_html, unsafe_allow_html=True)
+    # Google Drive/Sheet direct-link badges are shown in the PROCESSED RESULT section only
+    # (see show_result_popup below)
 if selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"]:
     uploaded_files = []
     # Optionally display a nice instruction block instead of the uploader
@@ -2180,13 +2189,13 @@ if should_run:
     cwd: str = str(selected_skill["dir"])
     
     # Use manual status instead of with st.spinner so we can clear it before st.stop()
-    output_expander = st.expander("📄 Data", expanded=False)
     
     # NOTE: We no longer reset last_processed_files here — clips accumulate
     # across batches within the session. The file_index is set after processing
     # to point at the start of the newest batch (see line ~2231).
     
     proc_overlay = trigger_processing_overlay()
+    output_expander = st.expander("📄 Data", expanded=False)
     with output_expander:
         main_spinner = st.empty()
         main_spinner.info("⏳ PROCESSING...")
@@ -2425,11 +2434,13 @@ if should_run:
             trigger_complete_overlay(proc_overlay)
             time.sleep(2)
 
-# --- Persistent Output Expander (always rendered, survives MY CLIPS navigation) ---
+
+
+# --- Persistent Data Expander (hidden via CSS, kept for potential future use) ---
 _stored_upload_msg = get_skill_state("_upload_status_msg", "") if selected_skill else ""
 _stored_success_msg = get_skill_state("_last_success_msg", "") if selected_skill else ""
 _stored_data_output = get_skill_state("_last_data_output", "") if selected_skill else ""
-if _stored_upload_msg or _stored_success_msg or _stored_data_output:
+if (_stored_upload_msg or _stored_success_msg or _stored_data_output) and False:  # Hidden — set True to re-enable
     with st.expander("📄 Data", expanded=False):
         if _stored_upload_msg:
             st.success(_stored_upload_msg)
@@ -2529,7 +2540,7 @@ def show_result_popup(text: str):
             _stats_match = _re_pre.search(r"\*\*Statistics:\*\*\s*(.+)", display_text)
             if _stats_match:
                 _stats_for_speed = _stats_match.group(1).strip()
-            render_speed_controls(skill_id=selected_skill_id, stats_text=_stats_for_speed)
+            render_speed_controls(skill_id=selected_skill_id, stats_text=_stats_for_speed, clip_name=str(current_file.get('name', '')))
 
         elif is_image:
             st.markdown(f"**Viewing Image {idx + 1} of {len(processed_files)}**: `{current_file['name']}`") # type: ignore
@@ -2925,7 +2936,7 @@ def show_result_popup(text: str):
             # Specialized player for audio results (like TTS)
             if dl_mime and dl_mime.startswith("audio/"):
                 st.audio(res_bytes, format=dl_mime, autoplay=True) # type: ignore
-                render_speed_controls(skill_id=selected_skill_id)
+                render_speed_controls(skill_id=selected_skill_id, clip_name=str(res_name or ''))
                 st.markdown("<br>", unsafe_allow_html=True)
                 
             col1, col2, col3 = st.columns([2, 3, 2])

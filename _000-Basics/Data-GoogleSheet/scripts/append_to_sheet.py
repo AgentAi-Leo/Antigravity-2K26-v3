@@ -16,7 +16,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive.file'
 ]
 
-HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcription", "Preview", "Copy Link", "Notes-1", "Notes-2"]
+HEADERS = ["Batch ID", "#", "Timestamp", "Original File", "Status", "Transcription", "Usage", "Preview", "Copy Link", "Notes-1", "Notes-2", "Google Drive Folder", "FolderID", "FileID", "SheetID", "Sharing With"]
 
 def get_secret(project_id, secret_id):
     try:
@@ -131,7 +131,9 @@ def get_or_create_sheet(service, title, fields, share_with=None, creds=None):
             
         return ss_id
 
-def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", batch_seq="", batch_summary=False):
+def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", batch_seq="", batch_summary=False,
+                    drive_folder_name="", folder_id="", file_id="", sheet_id_value="", sharing_with_email="",
+                    usage=""):
     creds = authenticate(creds_path)
     service = build('sheets', 'v4', credentials=creds)
     
@@ -184,9 +186,21 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
             timestamp,
         ] + row_values
         
-        # Cols I & J (indices 8 & 9) are usually Notes-1 and Notes-2.
-        while len(row) < 10:
+        # Insert Usage after Transcription (index 5 in row → insert at position 6)
+        # row so far: [BatchID, #, Timestamp, OrigFile, Status, Transcript, Preview, CopyLink]
+        # After insert: [BatchID, #, Timestamp, OrigFile, Status, Transcript, Usage, Preview, CopyLink]
+        row.insert(6, usage)
+        
+        # Cols J & K (indices 9 & 10) are Notes-1 and Notes-2.
+        while len(row) < 11:
             row.append("")
+        # Cols L-P (indices 11-15): metadata columns
+        row.append(drive_folder_name)  # L: Google Drive Folder
+        row.append(folder_id)          # M: FolderID
+        row.append(file_id)            # N: FileID
+        # SheetID: the script itself knows the sheet_id; use it directly
+        row.append(sheet_id_value or sheet_id)  # O: SheetID
+        row.append(sharing_with_email or (share_with or ""))  # P: Sharing With
         body = {'values': [row]}
         # Use USER_ENTERED so =HYPERLINK formulas are interpreted
         # Retry once if append fails (first file after sheet creation can be flaky)
@@ -219,8 +233,9 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                 row_idx = int(match.group(2)) - 1
                 for col_idx, cell_value in enumerate(row):
                     val_str = str(cell_value)
-                    # Add note to cells with >1 chars (skip formulas like =HYPERLINK and skip BatchID/Timestamp/Copy Link/Notes columns 0, 2, 7, 8, 9)
-                    if len(val_str) > 1 and not val_str.startswith('=') and col_idx not in (0, 2, 7, 8, 9):
+                    # Add note to cells with >1 chars (skip formulas, BatchID/Timestamp/Copy Link/Notes/Metadata ID columns)
+                    # Indices: 0=BatchID, 2=Timestamp, 8=CopyLink, 9=Notes-1, 10=Notes-2, 12=FolderID, 13=FileID, 14=SheetID
+                    if len(val_str) > 1 and not val_str.startswith('=') and col_idx not in (0, 2, 8, 9, 10, 12, 13, 14):
                         resize_requests.append({
                             'updateCells': {
                                 'range': {
@@ -235,8 +250,9 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                             }
                         })
 
-        # 1) Auto-resize columns A-E (indices 0-4) and G-J (indices 6-9)
-        auto_ranges = [(0, 5), (6, 10)]
+        # 1) Auto-resize columns A-E (indices 0-4), G-P (indices 6-16)
+        #    Col F (Transcription, index 5) gets a fixed width below
+        auto_ranges = [(0, 5), (6, 16)]
         for col_range in auto_ranges:
             resize_requests.append({  # type: ignore[arg-type]
                 'autoResizeDimensions': {
@@ -280,10 +296,10 @@ def append_to_sheet(title, values, creds_path, share_with=None, batch_id="", bat
                 if i == skip_col:
                     continue
                 # Extra padding overrides: 
-                # - Notes columns (indices 8, 9): 75px
+                # - Notes columns (indices 9, 10): 75px
                 # - Timestamp column (index 2): 35px (+15px standard)
                 # - Others: 20px
-                if i in (8, 9):
+                if i in (9, 10):
                     pad = 75
                 elif i == 2:
                     pad = 35
@@ -321,10 +337,20 @@ def main():
     parser.add_argument("--batch-id", default="", help="Batch identifier for grouping rows")
     parser.add_argument("--batch-seq", default="", help="Sequence number within the batch")
     parser.add_argument("--batch-summary", action="store_true", help="Append a summary row instead of a data row")
+    # Metadata columns
+    parser.add_argument("--drive-folder-name", default="", help="Google Drive folder name")
+    parser.add_argument("--folder-id", default="", help="Google Drive folder ID")
+    parser.add_argument("--file-id", default="", help="Google Drive file ID")
+    parser.add_argument("--sheet-id-value", default="", help="Google Sheet ID")
+    parser.add_argument("--sharing-with-email", default="", help="Email the file was shared with")
+    parser.add_argument("--usage", default="", help="Usage stats (e.g. '355 words, 2114 characters')")
     
     args = parser.parse_args()
     append_to_sheet(args.title, args.data, args.credentials, args.share_with,
-                    batch_id=args.batch_id, batch_seq=args.batch_seq, batch_summary=args.batch_summary)
+                    batch_id=args.batch_id, batch_seq=args.batch_seq, batch_summary=args.batch_summary,
+                    drive_folder_name=args.drive_folder_name, folder_id=args.folder_id,
+                    file_id=args.file_id, sheet_id_value=args.sheet_id_value,
+                    sharing_with_email=args.sharing_with_email, usage=args.usage)
 
 if __name__ == '__main__':
     main()

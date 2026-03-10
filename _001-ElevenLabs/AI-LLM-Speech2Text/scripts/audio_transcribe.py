@@ -189,6 +189,9 @@ def main() -> None:
 
     # Optional: Auto-upload to Google Drive
     drive_link = ""
+    folder_id = ""
+    file_id = ""
+    usage_str = f"{len(result.split())} words, {len(result)} characters"
     if args.drive_folder:
         upload_target = args.input
         ext_lower = os.path.splitext(args.input)[1].lower()
@@ -231,7 +234,11 @@ def main() -> None:
                     for line in res.stderr.splitlines():
                         if "Link:" in line:
                             drive_link = line.split("Link:", 1)[1].strip()
-                        elif "FolderID:" in line or "FileID:" in line:
+                        elif "FolderID:" in line:
+                            folder_id = line.split("FolderID:", 1)[1].strip()
+                            sys.stderr.write(line + "\n")
+                        elif "FileID:" in line:
+                            file_id = line.split("FileID:", 1)[1].strip()
                             sys.stderr.write(line + "\n")
                 else:
                     sys.stderr.write(f"Warning: Drive upload failed: {res.stderr}\n")
@@ -267,6 +274,15 @@ def main() -> None:
                     cmd.extend(["--batch-seq", args.batch_seq])
                 if args.share_with:
                     cmd.extend(["--share-with", args.share_with])
+                    cmd.extend(["--sharing-with-email", args.share_with])
+                if args.drive_folder:
+                    cmd.extend(["--drive-folder-name", args.drive_folder])
+                if folder_id:
+                    cmd.extend(["--folder-id", folder_id])
+                if file_id:
+                    cmd.extend(["--file-id", file_id])
+                if usage_str:
+                    cmd.extend(["--usage", usage_str])
                 
                 res = subprocess.run(cmd, capture_output=True, text=True)
                 if res.returncode == 0:
