@@ -14,10 +14,11 @@ Adds:
     - Google Drive & Google Sheets Multi-File Upload Support 
     - Google Sheet Columns (Headers) & Cell Width Adjustments
     - Google Sheets Auto-Hover Notes for Long Text Cells
-    - Finessing Input Details/Volume On Uploader, Error Messages & Clip Navigation
+    - Finessing Input Details/Volume On Uploader, Error Messages & Clip Nav
     - Fixed Sebsequent Uploading Issues - FINALLY! 
     - Updated Google Sheets w/Massive Meta Data (Includes: IDs/Paths/etc)
-   
+    - Styling: Increased Size of Processing File Overlay & Dimmed Background
+    - 
 
 
 .gitignore hardened — these will never be committed to GitHub:

@@ -281,38 +281,43 @@ def trigger_processing_overlay():
                             top: 0; left: 0; width: 100vw; height: 100vh;
                             z-index: 999990;
                             display: flex; align-items: center; justify-content: center;
-                            background-color: rgba(0,0,0,0.5);
+                            background-color: rgba(0,0,0,0.85);
                             pointer-events: auto;
                         }
                         #ag-processing-box {
                             position: relative;
-                            width: 540px;
+                            width: 675px;
+                            min-height: 380px;
                             background-color: rgba(10, 10, 15, 0.95);
                             border: 2px solid rgba(136, 224, 228, 0.6);
-                            border-radius: 12px;
-                            box-shadow: 0 0 15px rgba(172, 240, 241, 0.3),
-                                        0 0 40px rgba(172, 240, 241, 0.15),
-                                        0 0 80px rgba(172, 240, 241, 0.08),
-                                        inset 0 0 20px rgba(172, 240, 241, 0.05);
+                            border-radius: 15px;
+                            box-shadow: 0 0 15px rgba(172, 240, 241, 0.51),
+                                        0 0 40px rgba(172, 240, 241, 0.26),
+                                        0 0 80px rgba(172, 240, 241, 0.13),
+                                        inset 0 0 20px rgba(172, 240, 241, 0.09);
                             backdrop-filter: blur(10px);
-                            padding: 24px;
-                            padding-bottom: 70px;
+                            padding: 30px;
+                            padding-bottom: 80px;
                             text-align: center;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
                         }
                         #ag-processing-box .ag-title {
-                            line-height: 1.1; margin-bottom: 10px;
-                            font-size: 2rem; font-weight: bold;
+                            line-height: 1.1; margin-bottom: 12px;
+                            font-size: 2.5rem; font-weight: bold;
                             color: #a8ffdb; font-family: sans-serif;
                         }
                         #ag-processing-box .ag-subtitle {
-                            font-size: 1.2rem; opacity: 0.8;
+                            font-size: 1.5rem; opacity: 0.8;
                             font-weight: normal; color: #88d4b4;
                         }
                         #ag-processing-box .ag-dots {
-                            display: flex; justify-content: center; gap: 8px; margin: 15px 0;
+                            display: flex; justify-content: center; gap: 10px; margin: 18px 0;
                         }
                         #ag-processing-box .ag-dot {
-                            width: 15px; height: 15px;
+                            width: 19px; height: 19px;
                             background-color: #acf0f1; border-radius: 50%;
                             animation: agDotPulse 1.4s infinite ease-in-out both;
                         }
@@ -323,17 +328,17 @@ def trigger_processing_overlay():
                             40% { transform: scale(1.0); }
                         }
                         #ag-processing-box .ag-info {
-                            font-size: 0.9rem; color: #fff;
-                            font-weight: normal; margin-top: 15px;
+                            font-size: 1.1rem; color: #fff;
+                            font-weight: normal; margin-top: 18px;
                         }
                         #ag-cancel-btn {
-                            position: absolute; bottom: 15px; right: 15px;
+                            position: absolute; bottom: 18px; right: 18px;
                             background-color: rgba(200,30,30,0.8);
                             color: rgba(255,255,255,0.9);
                             border: 1px solid rgba(255,100,100,0.4);
-                            padding: 4px 12px; font-size: 10px;
+                            padding: 6px 18px; font-size: 14px;
                             font-weight: bold; letter-spacing: 0.5px;
-                            border-radius: 4px; cursor: pointer;
+                            border-radius: 5px; cursor: pointer;
                             transition: all 0.2s ease;
                         }
                         #ag-cancel-btn:hover {
@@ -522,24 +527,28 @@ def trigger_complete_overlay(placeholder):
                                 top: 0; left: 0; width: 100vw; height: 100vh;
                                 z-index: 999990;
                                 display: flex; align-items: center; justify-content: center;
-                                background-color: rgba(0,0,0,0.4);
+                                background-color: rgba(0,0,0,0.85);
                                 pointer-events: none;
                                 animation: agCompleteFade 2s ease-in-out forwards;
                             }}
                             #ag-complete-box {{
-                                width: 540px;
+                                width: 675px;
+                                min-height: 380px;
                                 background-color: rgba(10, 10, 15, 0.95);
                                 border: 2px solid rgba(136, 224, 228, 0.6);
-                                border-radius: 12px;
-                                box-shadow: 0 0 15px rgba(172, 240, 241, 0.3),
-                                            0 0 40px rgba(172, 240, 241, 0.15),
-                                            0 0 80px rgba(172, 240, 241, 0.08);
+                                border-radius: 15px;
+                                box-shadow: 0 0 15px rgba(172, 240, 241, 0.51),
+                                            0 0 40px rgba(172, 240, 241, 0.26),
+                                            0 0 80px rgba(172, 240, 241, 0.13);
                                 padding: 30px;
                                 text-align: center;
-                                font-size: 2rem;
+                                font-size: 2.5rem;
                                 font-weight: bold;
                                 color: #a8ffdb;
                                 font-family: sans-serif;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
                             }}
                             @keyframes agCompleteFade {{
                                 0% {{ opacity: 1; }}
@@ -2462,6 +2471,8 @@ def show_result_popup(text: str):
     is_image = False
     
     # 0. Header & Type Info
+    # Hide Streamlit's auto-generated anchor link icon on headers
+    st.markdown("<style>h1 a, h2 a, h3 a { display: none !important; }</style>", unsafe_allow_html=True)
     if is_google_sheet:
         st.markdown("<h1 class='processed-header'><span style='filter:none;'>📄</span> GOOGLE SHEET GENERATED</h1>", unsafe_allow_html=True)
     else:
