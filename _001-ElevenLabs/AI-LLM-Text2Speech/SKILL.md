@@ -1,5 +1,5 @@
 ---
-name: Text2Speech
+name:
 description: Converts text documents or prompts directly into lifelike MP3 audio files using the ElevenLabs API. Use when the user asks to generate audio, narrate text, or trigger text-to-speech.
 ---
 

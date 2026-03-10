@@ -678,6 +678,9 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
                 "Creating folder:", "Uploading ", "Warning:",
                 "Sharing file with", "Sharing '",
                 "✅ Upload", "✅ Appended", "🔗 Link:",
+                # Text2Speech backend log lines
+                "Initializing ElevenLabs", "Generating audio",
+                "Saving to ", "**Backend", "____", "───",
             )
             lines = [l for l in final_text.splitlines() if not l.startswith(ignore_prefixes)]
             transcript = "\n".join(lines).strip()
@@ -854,7 +857,7 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
                             content_preview += f"\n\n**Statistics:** {usage_line.split(':', 1)[-1].strip()}"
 
                     # Capture Google IDs from stderr for badge direct-links
-                    _tts_machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "Auto-uploading", "Logging results", "Converting", "Warning:")
+                    _tts_machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "FileID:", "Auto-uploading", "Logging results", "Converting", "Warning:", "Initializing ElevenLabs", "Generating audio", "Saving to ", "Sharing file", "Sharing '", "✅ Upload", "✅ Appended", "🔗 Link:", "ID:")
                     for stderr_line in res.stderr.splitlines():
                         if stderr_line.startswith("FolderID:"):
                             st.session_state["_google_folder_id"] = stderr_line.split(":", 1)[1].strip()

@@ -244,6 +244,8 @@ def main():
 
                                 # Optional: Auto-upload to Google Drive
                                 drive_link = ""
+                                folder_id = ""
+                                file_id = ""
                                 if args.drive_folder:
                                     sys.stderr.write(f"Auto-uploading to Google Drive folder: '{args.drive_folder}'...\n")
                                     try:
@@ -262,11 +264,15 @@ def main():
                                             res = subprocess.run(cmd, capture_output=True, text=True)
                                             if res.returncode == 0:
                                                 sys.stdout.write(res.stdout + "\n")
-                                                # Extract link for sheet logging (upload_to_drive prints this to stderr)
+                                                # Extract link and IDs for sheet logging and badge links
                                                 for line in res.stderr.splitlines():
                                                     if "Link:" in line:
                                                         drive_link = line.split("Link:", 1)[1].strip()
-                                                    elif "FolderID:" in line or "FileID:" in line:
+                                                    elif "FolderID:" in line:
+                                                        folder_id = line.split("FolderID:", 1)[1].strip()
+                                                        sys.stderr.write(line + "\n")
+                                                    elif "FileID:" in line:
+                                                        file_id = line.split("FileID:", 1)[1].strip()
                                                         sys.stderr.write(line + "\n")
                                             else:
                                                 sys.stderr.write(f"Warning: Drive upload failed: {res.stderr}\n")
@@ -287,8 +293,8 @@ def main():
                                             status = "Success"
                                             # Truncate text for sheet if very long
                                             res_str = str(content)
-                                            if len(res_str) > 5000:
-                                                preview = res_str[:5000] + "..."  # type: ignore
+                                            if len(res_str) > 500:
+                                                preview = res_str[:500] + "..."  # type: ignore
                                             else:
                                                 preview = res_str
                                             original_file = os.path.basename(args.input) if args.input else "Manual Text"
@@ -300,10 +306,23 @@ def main():
                                                 cmd.extend(["--batch-seq", args.batch_seq])
                                             if args.share_with:
                                                 cmd.extend(["--share-with", args.share_with])
-                                                
+                                                cmd.extend(["--sharing-with-email", args.share_with])
+                                            if args.drive_folder:
+                                                cmd.extend(["--drive-folder-name", args.drive_folder])
+                                            if folder_id:
+                                                cmd.extend(["--folder-id", folder_id])
+                                            if file_id:
+                                                cmd.extend(["--file-id", file_id])
+                                            usage_str = f"{words} words, {chars} characters"
+                                            cmd.extend(["--usage", usage_str])
+                                            
                                             res = subprocess.run(cmd, capture_output=True, text=True)
                                             if res.returncode == 0:
                                                 sys.stdout.write(res.stdout + "\n")
+                                                # Propagate SheetID for badge links
+                                                for line in res.stderr.splitlines():
+                                                    if "SheetID:" in line:
+                                                        sys.stderr.write(line + "\n")
                                             else:
                                                 sys.stderr.write(f"Warning: Sheet logging failed: {res.stderr}\n")
                                     except Exception as sheet_err:

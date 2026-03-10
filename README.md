@@ -18,7 +18,8 @@ Adds:
     - Fixed Sebsequent Uploading Issues - FINALLY! & Google Badges
     - Updated Google Sheets w/Massive Meta Data (Includes: IDs/Paths/etc)
     - Styling: Increased Size of Processing File Overlay & Dimmed Background
-    - 
+    - Updating Speech2Text to Include Google Drive & Sheets Support
+    - RED Toggle Button 
 
 
 .gitignore hardened — these will never be committed to GitHub:
