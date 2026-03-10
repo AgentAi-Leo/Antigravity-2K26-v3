@@ -24,7 +24,7 @@ Adds:
     - Light Mode OVerall Okay But Still Needs Way More Work Honestly!
     - Challenges with Google Drive & Sheets Toggle Button In LightMode
     - Made Password Button Nicer/Smaller
-    -
+    - Made alot of GREAT PROGRESS Today. Well Done!
 
 
 

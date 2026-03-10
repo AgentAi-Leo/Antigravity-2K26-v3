@@ -1285,7 +1285,7 @@ def check_password():
     
     with st.form("login_form", clear_on_submit=False, border=False):
         st.markdown('<div class="password-container">', unsafe_allow_html=True)
-        _pw_col, _pw_spacer = st.columns([11, 9])
+        _pw_col, _pw_spacer = st.columns([1, 1])
         with _pw_col:
             password = st.text_input("Password", type="password", placeholder="Enter Password", label_visibility="collapsed")
             st.markdown("<span style='color: #FFE300; font-size: 0.85em;'>Press Enter to submit</span>", unsafe_allow_html=True)
@@ -1450,23 +1450,39 @@ st.sidebar.markdown(
 if "theme_mode" not in st.session_state:
     st.session_state["theme_mode"] = "dark"
 
-_info_col, _toggle_col = st.sidebar.columns([3, 1])
+# Read current toggle state (from previous run) to sync icon
+_current_light = st.session_state.get("_theme_toggle", False)
+st.session_state["theme_mode"] = "light" if _current_light else "dark"
+
+_info_col, _icon_col, _toggle_col, _tip_col = st.sidebar.columns([4, 1.2, 1, 0.5])
 with _info_col:
     st.markdown(f"<div style='text-align: center; color: white;'><b>{len(skills)} skills loaded</b></div>", unsafe_allow_html=True)
-with _toggle_col:
-    _is_light = st.toggle("", value=st.session_state.get("theme_mode") == "light", key="_theme_toggle", label_visibility="collapsed")
-    st.session_state["theme_mode"] = "light" if _is_light else "dark"
-    if _is_light:
+with _icon_col:
+    if _current_light:
         st.components.v1.html(
-            '<div style="font-size:30px; text-align:center; line-height:1;">☀️</div>',
-            height=42
+            '<div style="font-size:30px; text-align:center; line-height:1; margin-top:2px;">☀️</div>',
+            height=35
         )
     else:
         st.components.v1.html(
             '<div style="font-size:30px; text-align:center; color:#5b9bd5; '
-            'transform:scaleX(-1); line-height:1;">☾</div>',
-            height=42
+            'transform:scaleX(-1); line-height:1; margin-top:2px;">☾</div>',
+            height=35
         )
+with _toggle_col:
+    st.toggle("", value=_current_light, key="_theme_toggle", label_visibility="collapsed")
+with _tip_col:
+    st.markdown("""<div style='margin-top:5px;'>
+<style>
+.info-tip { position:relative; display:inline-block; font-size:16px; color:white; cursor:pointer; }
+.info-tip:hover::after {
+    content:'Toggle Light / Dark mode';
+    position:absolute; top:125%; right:0;
+    background:#333; color:#fff; padding:6px 12px; border-radius:6px;
+    font-size:14px; white-space:nowrap; z-index:999;
+}
+</style>
+<span class="info-tip">ⓘ</span></div>""", unsafe_allow_html=True)
 
 # Style the theme toggle sun icon larger (25px)
 st.markdown("""
