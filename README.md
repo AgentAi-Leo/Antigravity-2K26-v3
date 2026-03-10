@@ -19,7 +19,8 @@ Adds:
     - Updated Google Sheets w/Massive Meta Data (Includes: IDs/Paths/etc)
     - Styling: Increased Size of Processing File Overlay & Dimmed Background
     - Updating Speech2Text to Include Google Drive & Sheets Support
-    - RED Toggle Button 
+    - GREEN Toggle Button FIX!!!
+
 
 
 .gitignore hardened — these will never be committed to GitHub:
