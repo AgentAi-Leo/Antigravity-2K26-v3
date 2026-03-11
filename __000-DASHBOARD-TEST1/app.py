@@ -253,24 +253,25 @@ def render_word_tracker(alignment_data, clip_name="", estimated=False):
     
     # Calculate appropriate height for the component iframe
     # At 31px font, ~5 words per line centered, 62px per line (31*2.0), plus 76px padding (38*2)
-    words_per_line = max(1, 5)
+    words_per_line = max(1, 6)
     estimated_lines = max(1, (len(words) + words_per_line - 1) // words_per_line)
-    container_height = estimated_lines * 62 + 100
+    container_height = estimated_lines * 45 + 64
     
     components.html(f"""
         <style>
             body {{ margin: 0; padding: 0; background: transparent; }}
             .wt-container {{
                 font-family: inherit;
-                font-size: 31px;
-                line-height: 2.0;
+                font-size: 28px;
+                line-height: 1.5;
                 color: #ffffff;
-                padding: 38px;
+                padding: 19px 25px;
                 background-color: #000000;
                 border-radius: 10px;
                 border: 2px solid #ffffff;
                 text-align: center;
-                margin-bottom: 24px;
+                margin-bottom: 0;
+                word-spacing: -2px;
             }}
             .wt-container::-webkit-scrollbar {{ width: 6px; }}
             .wt-container::-webkit-scrollbar-track {{ background: transparent; }}
@@ -283,10 +284,11 @@ def render_word_tracker(alignment_data, clip_name="", estimated=False):
                 cursor: default;
             }}
             .wt-word.active {{
-                background: rgba(172, 240, 241, 0.3);
-                color: #acf0f1;
-                text-shadow: 0 0 12px rgba(172, 240, 241, 0.5);
-                font-weight: 700;
+                background: rgba(212, 249, 250, 0.4);
+                color: #d4f9fa;
+                text-shadow: -1px 0 0 currentColor, 1px 0 0 currentColor;
+                display: inline-block;
+                transform: scale(1.20);
             }}
             .wt-word.past {{
                 color: #777777;
@@ -361,7 +363,7 @@ def render_word_tracker(alignment_data, clip_name="", estimated=False):
             // Also do initial fast binding
             pollAudio();
         </script>
-    """, height=container_height + 30)
+    """, height=container_height)
 
 def trigger_duplicate_error():
     """Triggers the centered animated error overlay with sound."""
