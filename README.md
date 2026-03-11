@@ -26,8 +26,9 @@ Adds:
     - Made Password Button Nicer/Smaller
     - Made alot of GREAT PROGRESS Today. Well Done!
     - WOW! Adding Word Tracking/Sentence Tracking via ElevenLabs API
-    - Vers K Static Sync Text
-    - 
+    - Vers L Static Sync Text - Better Sizing & Highlighting
+    - May Add Dropdown Menu For Style Selection
+    
 
 
 .gitignore hardened — these will never be committed to GitHub:
