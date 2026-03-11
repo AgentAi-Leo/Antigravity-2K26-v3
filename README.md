@@ -1,4 +1,4 @@
-v3 SKILLS - streamlit 03.09.26
+v3 SKILLS - streamlit 03.11.26 vers-M
 
 Adds:
 - **v1**
@@ -37,13 +37,14 @@ Adds:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
 
 **AG VERS:**
-- **Antigravity Version:** 1.19.6
-- **VSCode OSS Version:** 1.107.0
-- **Commit:** d2597a5c475647ed306b22de1e39853c7812d07d
-- **Date:** 2026-02-26T23:07:23.202Z
-- **Electron:** 39.2.3
-- **Chromium:** 142.0.7444.175
-- **Node.js:** 22.21.1
-- **V8:** 14.2.231.21-electron.0
-- **OS:** Darwin arm64 25.3.0
-- **Language Server CL:** 875890115
+
+- Antigravity Version: 1.20.5
+- VSCode OSS Version: 1.107.0
+- Commit: 4603c2a412f8c7cca552ff00db91c3ee787016ff
+- Date: 2026-03-07T01:34:20.929Z (4 days ago)
+- Electron: 39.2.3
+- Chromium: 142.0.7444.175
+- Node.js: 22.21.1
+- V8: 14.2.231.21-electron.0
+- OS: Darwin arm64 25.3.0
+- Language Server CL: 879885162
