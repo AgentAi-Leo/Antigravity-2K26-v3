@@ -25,8 +25,9 @@ Adds:
     - Challenges with Google Drive & Sheets Toggle Button In LightMode
     - Made Password Button Nicer/Smaller
     - Made alot of GREAT PROGRESS Today. Well Done!
-    - TBD
 
+
+/// THIS IS EXELLENT BASE VERSION - GONNA ADD WORD TRACKING NEXT ///
 
 
 .gitignore hardened — these will never be committed to GitHub:
