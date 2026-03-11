@@ -87,6 +87,28 @@ def render_speed_controls(skill_id=None, stats_text="", clip_name=""):
                 background: #3b3b4a;
                 border-color: #ffd166;
             }}
+            .follow-toggle {{
+                background: #2b2b36;
+                color: #fafafa;
+                border: 1px solid #454555;
+                border-radius: 4px;
+                padding: 4px 12px;
+                font-family: sans-serif;
+                font-size: 13px;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-left: 12px;
+                white-space: nowrap;
+            }}
+            .follow-toggle:hover {{
+                border-color: #88e0e4;
+            }}
+            .follow-toggle.active {{
+                background: #1a6b6e;
+                color: #a8ffdb;
+                border-color: #88e0e4;
+                font-weight: bold;
+            }}
         </style>
         <div class="speed-bar">
             <span style="color: #bfbfbf; font-family: sans-serif; font-size: 13px; margin-right: 4px;">Speed:</span>
@@ -98,6 +120,7 @@ def render_speed_controls(skill_id=None, stats_text="", clip_name=""):
             <button class="speed-btn" onclick="setSpeed(3.0)">3x</button>
             <button class="speed-btn" onclick="setSpeed(4.0)">4x</button>
             {stats_html}
+            <button class="follow-toggle" id="follow-toggle-btn" onclick="toggleFollow()">📖 Follow Along</button>
         </div>
         <script>
             const currentSkillId = {skill_val};
@@ -166,6 +189,31 @@ def render_speed_controls(skill_id=None, stats_text="", clip_name=""):
                 updateButtons(savedSpeed);
             }};
 
+            // Follow Along toggle
+            function toggleFollow() {{
+                const btn = document.getElementById('follow-toggle-btn');
+                const current = localStorage.getItem('agFollowAlongEnabled');
+                const newState = (current === 'false') ? 'true' : 'false';
+                localStorage.setItem('agFollowAlongEnabled', newState);
+                updateFollowBtn(newState === 'true');
+            }}
+            function updateFollowBtn(isOn) {{
+                const btn = document.getElementById('follow-toggle-btn');
+                if (!btn) return;
+                if (isOn) {{
+                    btn.classList.add('active');
+                    btn.textContent = '📖 Follow Along: ON';
+                }} else {{
+                    btn.classList.remove('active');
+                    btn.textContent = '📖 Follow Along: OFF';
+                }}
+            }}
+            // Default to ON if not set
+            if (localStorage.getItem('agFollowAlongEnabled') === null) {{
+                localStorage.setItem('agFollowAlongEnabled', 'true');
+            }}
+            updateFollowBtn(localStorage.getItem('agFollowAlongEnabled') !== 'false');
+
             window.addEventListener('load', applyStoredSpeed);
             applyStoredSpeed();
             setInterval(applyStoredSpeed, 500);
@@ -173,6 +221,176 @@ def render_speed_controls(skill_id=None, stats_text="", clip_name=""):
         """,
         height=40
     )
+
+def render_word_tracker(alignment_data, clip_name="", estimated=False):
+    """Renders a synchronized word-tracking text display that highlights words in sync with audio playback.
+    
+    If estimated=True, evenly distributes words across audio.duration (for Speech2Text parity).
+    """
+    import json as _json_wt
+    import html as _html_wt
+    
+    words = alignment_data.get("words", [])
+    starts = alignment_data.get("start_times", [])
+    ends = alignment_data.get("end_times", [])
+    
+    if not words:
+        return
+    
+    # Build word spans with data attributes for timing
+    word_spans = []
+    for i, word in enumerate(words):
+        safe_word = _html_wt.escape(word)
+        if estimated:
+            # No timing data — JS will compute from audio.duration
+            word_spans.append(f'<span class="wt-word" data-idx="{i}">{safe_word}</span>')
+        else:
+            s = starts[i] if i < len(starts) else 0
+            e = ends[i] if i < len(ends) else 0
+            word_spans.append(f'<span class="wt-word" data-idx="{i}" data-start="{s}" data-end="{e}">{safe_word}</span>')
+    
+    words_html = " ".join(word_spans)
+    
+    # Calculate appropriate height based on word count
+    estimated_lines = max(1, len(words) // 12)
+    container_height = min(400, max(120, estimated_lines * 28 + 60))
+    
+    components.html(f"""
+        <style>
+            body {{ margin: 0; padding: 0; background: transparent; }}
+            .wt-container {{
+                font-family: inherit;
+                font-size: 23px;
+                line-height: 1.8;
+                color: #ffffff;
+                padding: 28px;
+                max-height: {container_height - 20}px;
+                overflow-y: auto;
+                scroll-behavior: smooth;
+                background-color: #000000;
+                border-radius: 10px;
+                border: 2px solid #ffffff;
+                text-align: center;
+                margin-bottom: 24px;
+            }}
+            .wt-container::-webkit-scrollbar {{ width: 6px; }}
+            .wt-container::-webkit-scrollbar-track {{ background: transparent; }}
+            .wt-container::-webkit-scrollbar-thumb {{ background: rgba(255, 255, 255, 0.3); border-radius: 3px; }}
+            .wt-word {{
+                display: inline;
+                padding: 2px 4px;
+                border-radius: 4px;
+                transition: all 0.18s ease;
+                cursor: default;
+            }}
+            .wt-word.active {{
+                background: rgba(172, 240, 241, 0.3);
+                color: #acf0f1;
+                text-shadow: 0 0 12px rgba(172, 240, 241, 0.5);
+                font-weight: 700;
+            }}
+            .wt-word.past {{
+                color: #777777;
+            }}
+        </style>
+        <div class="wt-container" id="wt-scroll-container">
+            {words_html}
+        </div>
+        <script>
+            const container = document.getElementById('wt-scroll-container');
+            const wordEls = container.querySelectorAll('.wt-word');
+            let lastActiveIdx = -1;
+            const isEstimated = {'true' if estimated else 'false'};
+            let estimatedTimingsSet = false;
+            
+            function setEstimatedTimings(duration) {{
+                if (estimatedTimingsSet || !isEstimated || !duration) return;
+                estimatedTimingsSet = true;
+                const totalWords = wordEls.length;
+                const timePerWord = duration / totalWords;
+                wordEls.forEach((el, idx) => {{
+                    el.dataset.start = (idx * timePerWord).toFixed(4);
+                    el.dataset.end = ((idx + 1) * timePerWord).toFixed(4);
+                }});
+            }}
+            
+            function updateHighlight(currentTime) {{
+                const followEnabled = localStorage.getItem('agFollowAlongEnabled') !== 'false';
+                
+                let activeIdx = -1;
+                for (let i = wordEls.length - 1; i >= 0; i--) {{
+                    const start = parseFloat(wordEls[i].dataset.start || '0');
+                    if (currentTime >= start - 0.05) {{
+                        activeIdx = i;
+                        break;
+                    }}
+                }}
+                
+                if (activeIdx === lastActiveIdx) return;
+                lastActiveIdx = activeIdx;
+                
+                wordEls.forEach((el, idx) => {{
+                    el.classList.remove('active', 'past');
+                    if (followEnabled) {{
+                        if (idx === activeIdx) {{
+                            el.classList.add('active');
+                        }} else if (idx < activeIdx) {{
+                            el.classList.add('past');
+                        }}
+                    }}
+                }});
+                
+                // Auto-scroll to keep active word visible
+                if (followEnabled && activeIdx >= 0) {{
+                    const activeEl = wordEls[activeIdx];
+                    const containerRect = container.getBoundingClientRect();
+                    const elRect = activeEl.getBoundingClientRect();
+                    const relativeTop = elRect.top - containerRect.top;
+                    
+                    if (relativeTop > containerRect.height * 0.65 || relativeTop < 0) {{
+                        activeEl.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+                    }}
+                }}
+            }}
+            
+            // Poll for audio timeupdate from parent Streamlit DOM
+            const parentDoc = window.parent.document;
+            function pollAudio() {{
+                const audios = parentDoc.querySelectorAll('audio');
+                if (audios.length > 0) {{
+                    const audio = audios[audios.length - 1];
+                    // For estimated mode, compute timings from audio.duration
+                    if (isEstimated && audio.duration && !isNaN(audio.duration)) {{
+                        setEstimatedTimings(audio.duration);
+                    }}
+                    if (!audio._wtBound) {{
+                        audio._wtBound = true;
+                        audio.addEventListener('timeupdate', function() {{
+                            if (isEstimated && !estimatedTimingsSet && audio.duration) {{
+                                setEstimatedTimings(audio.duration);
+                            }}
+                            updateHighlight(audio.currentTime);
+                        }});
+                        audio.addEventListener('seeked', function() {{
+                            lastActiveIdx = -1;
+                            updateHighlight(audio.currentTime);
+                        }});
+                    }}
+                    updateHighlight(audio.currentTime);
+                }}
+            }}
+            
+            pollAudio();
+            setInterval(pollAudio, 1000);
+            
+            let fastPollCount = 0;
+            const fastPoll = setInterval(function() {{
+                pollAudio();
+                fastPollCount++;
+                if (fastPollCount > 20) clearInterval(fastPoll);
+            }}, 200);
+        </script>
+    """, height=container_height + 30)
 
 def trigger_duplicate_error():
     """Triggers the centered animated error overlay with sound."""
@@ -849,6 +1067,17 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
                     else:
                         content_preview = f"Narrated Document: {original_name}"
                     
+                    # Load word-level alignment JSON for synchronized text highlighting
+                    import json as _json_tts
+                    alignment_data = None
+                    align_path: str = os.path.splitext(full_saved_path)[0] + ".alignment.json"
+                    if os.path.exists(align_path):
+                        try:
+                            with open(align_path, "r", encoding="utf-8") as alf:
+                                alignment_data = _json_tts.load(alf)
+                        except Exception:
+                            pass
+                    
                     # Extract usage (suppress for manual TTS input per user request)
                     usage_line = next((l for l in res.stdout.splitlines() if l.startswith("Usage:")), None)
                     if usage_line:
@@ -857,7 +1086,7 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
                             content_preview += f"\n\n**Statistics:** {usage_line.split(':', 1)[-1].strip()}"
 
                     # Capture Google IDs from stderr for badge direct-links
-                    _tts_machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "FileID:", "Auto-uploading", "Logging results", "Converting", "Warning:", "Initializing ElevenLabs", "Generating audio", "Saving to ", "Sharing file", "Sharing '", "✅ Upload", "✅ Appended", "🔗 Link:", "ID:")
+                    _tts_machine_prefixes = ("Usage:", "Link:", "FolderID:", "SheetID:", "FileID:", "Auto-uploading", "Logging results", "Converting", "Warning:", "Initializing ElevenLabs", "Generating audio", "Saving to ", "Sharing file", "Sharing '", "✅ Upload", "✅ Appended", "🔗 Link:", "ID:", "Alignment saved")
                     for stderr_line in res.stderr.splitlines():
                         if stderr_line.startswith("FolderID:"):
                             st.session_state["_google_folder_id"] = stderr_line.split(":", 1)[1].strip()
@@ -874,7 +1103,8 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
                         "original_name": original_name,
                         "bytes": audio_bytes,
                         "transcript": content_preview,
-                        "content_preview": content_preview
+                        "content_preview": content_preview,
+                        "alignment": alignment_data
                     })
                     # Track words for batch summary (use raw content, not formatted preview)
                     total_words += len(content_preview.split()) # type: ignore[operator]
@@ -2756,6 +2986,8 @@ def show_result_popup(text: str):
             if _stats_match:
                 _stats_for_speed = _stats_match.group(1).strip()
             render_speed_controls(skill_id=selected_skill_id, stats_text=_stats_for_speed, clip_name=str(current_file.get('name', '')))
+            
+
 
         elif is_image:
             st.markdown(f"**Viewing Image {idx + 1} of {len(processed_files)}**: `{current_file['name']}`") # type: ignore
@@ -3119,12 +3351,28 @@ def show_result_popup(text: str):
 
     # --- Preview box BELOW copy button ---
     if is_media or is_image:
-        if display_text:
-            safe_text = html.escape(display_text)
-            st.markdown(
-                f"<div class='transcript-box'>{safe_text.replace(chr(10), '<br>')}</div>",
-                unsafe_allow_html=True
-            )
+        # Check if word tracker alignment data is available for this file
+        _wt_alignment = None
+        if processed_files:
+            _wt_current = processed_files[min(idx, len(processed_files)-1)]
+            _wt_alignment = _wt_current.get("alignment")
+        
+        if _wt_alignment and isinstance(_wt_alignment, dict) and _wt_alignment.get("words"):
+            # Render synchronized word tracker instead of static text
+            render_word_tracker(_wt_alignment, clip_name=str(current_file.get('name', '') if processed_files else ''))
+        elif display_text:
+            # Use estimated word tracker for media files with transcript but no alignment data
+            # This provides Follow Along parity between Speech2Text and Text2Speech
+            _est_words = display_text.split()
+            if _est_words and is_media:
+                _est_alignment = {"words": _est_words, "start_times": [], "end_times": []}
+                render_word_tracker(_est_alignment, clip_name=str(current_file.get('name', '') if processed_files else ''), estimated=True)
+            else:
+                safe_text = html.escape(display_text)
+                st.markdown(
+                    f"<div class='transcript-box'>{safe_text.replace(chr(10), '<br>')}</div>",
+                    unsafe_allow_html=True
+                )
     else:
         # Use the same transcript-box styling for document previews
         if display_text and not is_google_sheet:

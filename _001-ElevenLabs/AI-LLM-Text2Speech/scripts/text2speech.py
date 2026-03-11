@@ -1,6 +1,8 @@
 import os
 import sys
 import argparse
+import json
+import base64
 from elevenlabs.client import ElevenLabs  # type: ignore[import-not-found]
 
 def main():
@@ -85,22 +87,23 @@ def main():
         print("Initializing ElevenLabs client...", file=sys.stderr)
         client = ElevenLabs(api_key=api_key, timeout=1800.0) # 30 mins max
         
-        print("Generating audio...", file=sys.stderr)
-        # We capture the generator output directly 
-        audio_generator = client.text_to_speech.convert(
+        print("Generating audio with timestamps...", file=sys.stderr)
+        # Use convert_with_timestamps to get character-level timing data
+        response = client.text_to_speech.convert_with_timestamps(
             text=content,
             voice_id=args.voice_id,
-           model_id=args.model_id,
+            model_id=args.model_id,
             output_format="mp3_44100_128",
         )
         
         print(f"Saving to {output_path}...", file=sys.stderr)
-        # The SDK returns an iterator of bytes; write them directly to the destination
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        
+        # The response contains audio_base_64 (SDK Pydantic attribute) and alignment data
+        audio_b64 = response.audio_base_64
+        audio_bytes = base64.b64decode(audio_b64)
         with open(output_path, "wb") as f:
-            for chunk in audio_generator:
-                if chunk:
-                    f.write(chunk)
+            f.write(audio_bytes)
                     
         print(f"Saved: {output_path}", file=sys.stdout)
         
@@ -115,6 +118,64 @@ def main():
         txt_output = output_stem + ".txt"
         with open(txt_output, "w", encoding="utf-8") as txt_f:
             txt_f.write(content)
+        
+        # Build word-level alignment from character-level timestamps
+        alignment = getattr(response, 'alignment', None)
+        if alignment:
+            char_list = alignment.characters or []
+            char_starts = alignment.character_start_times_seconds or []
+            char_ends = alignment.character_end_times_seconds or []
+            
+            # Aggregate characters into words (split on spaces)
+            word_alignment = {"words": [], "start_times": [], "end_times": []}
+            current_word = ""
+            word_start = None
+            word_end = None
+            
+            for ci, ch in enumerate(char_list):
+                c_start = char_starts[ci] if ci < len(char_starts) else 0
+                c_end = char_ends[ci] if ci < len(char_ends) else 0
+                
+                if ch == " ":
+                    # Space: flush current word
+                    if current_word.strip():
+                        word_alignment["words"].append(current_word)
+                        word_alignment["start_times"].append(word_start)
+                        word_alignment["end_times"].append(word_end)
+                    current_word = ""
+                    word_start = None
+                    word_end = None
+                else:
+                    current_word += ch
+                    if word_start is None:
+                        word_start = c_start
+                    word_end = c_end
+            
+            # Flush last word
+            if current_word.strip():
+                word_alignment["words"].append(current_word)
+                word_alignment["start_times"].append(word_start)
+                word_alignment["end_times"].append(word_end)
+            
+            # Deduplicate timestamps (known SDK issue for audio > 60s)
+            seen_starts = set()
+            deduped = {"words": [], "start_times": [], "end_times": []}
+            for wi in range(len(word_alignment["words"])):
+                st_key = word_alignment["start_times"][wi]
+                if st_key not in seen_starts:
+                    seen_starts.add(st_key)
+                    deduped["words"].append(word_alignment["words"][wi])
+                    deduped["start_times"].append(word_alignment["start_times"][wi])
+                    deduped["end_times"].append(word_alignment["end_times"][wi])
+            word_alignment = deduped
+            
+            # Save alignment JSON sidecar
+            align_output = output_stem + ".alignment.json"
+            with open(align_output, "w", encoding="utf-8") as af:
+                json.dump(word_alignment, af)
+            print(f"Alignment saved: {align_output}", file=sys.stderr)
+        else:
+            print("Warning: No alignment data received from API.", file=sys.stderr)
 
         # Optional: Auto-upload to Google Drive
         drive_link = ""

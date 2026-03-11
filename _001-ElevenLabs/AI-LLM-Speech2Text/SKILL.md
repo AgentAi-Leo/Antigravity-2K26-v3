@@ -1,6 +1,6 @@
 ---
 name:
-description: Transcribes audio or video files to specified Google Drive and Google Sheet. Outputs in plain text, PDF and SRT subtitles. Batched files also allowed.
+description: Transcribes audio or video files using the ElevenLabs Speech-to-Text API. Outputs in plain text, PDF and SRT subtitles. Supports Google Drive upload and Google Sheet logging. Batched files also allowed.
 ---
 
 # AI-LLM-Speech2Text Skill
@@ -15,14 +15,13 @@ description: Transcribes audio or video files to specified Google Drive and Goog
 ## Prerequisites
 
 ```bash
-export GEMINI_API_KEY="..."    # for Gemini audio (default, supports .mp3 .wav .m4a .mp4)
-# OR: OPENAI_API_KEY            # for Whisper (broader format support)
+export ELEVENLABS_API_KEY="..."    # Required — ElevenLabs API key (Creator plan or higher)
 ```
 
 ---
 
 ## Workflow
-- [ ] 1. Set API key
+- [ ] 1. Ensure `ELEVENLABS_API_KEY` is available in the environment.
 - [ ] 2. Run `scripts/audio_transcribe.py --input recording.mp3`
 - [ ] 3. Review the output text or SRT file
 
@@ -42,12 +41,6 @@ python3 scripts/audio_transcribe.py --input video.mp4 --format srt --output subt
 
 # Specify language (faster, more accurate)
 python3 scripts/audio_transcribe.py --input audio.wav --language Spanish
-
-# Use Whisper (OpenAI)
-python3 scripts/audio_transcribe.py --input audio.mp3 --provider openai
-
-# Translate to English while transcribing
-python3 scripts/audio_transcribe.py --input audio.mp3 --translate-to English
 ```
 
 ---
@@ -60,20 +53,21 @@ python3 scripts/audio_transcribe.py --input audio.mp3 --translate-to English
 | `--output` | stdout | Save transcript to file |
 | `--format` | `text` | `text` or `srt` (subtitles) |
 | `--language` | auto-detect | Source language hint |
-| `--translate-to` | off | Translate output to this language |
-| `--provider` | `gemini` | `gemini` or `openai` (Whisper) |
-| `--model` | `gemini-2.5-flash-native-audio-preview-12-2025` | Override model |
+| `--provider` | `elevenlabs` | `elevenlabs`, `gemini`, or `openai` (fallback only) |
 
 ---
 
 ## Supported Formats
 
-| Provider | Formats |
-|---|---|
-| Gemini | `.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.mp4`, `.mov` |
-| OpenAI Whisper | `.mp3`, `.mp4`, `.mpeg`, `.mpga`, `.m4a`, `.wav`, `.webm` |
+`.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.flac`, `.webm`, `.aiff`, `.aif`, `.wma`, `.oga`, `.opus`, `.3gp`, `.mp4`, `.mov`, `.avi`, `.mkv`
+
+---
+
+## Dashboard Features
+- **Follow Along**: Real-time estimated word tracking that highlights text in sync with audio playback
+- **Speed Controls**: Playback speed from 0.5x to 4x — word tracking stays in sync
 
 ---
 
 ## Resources
-- `scripts/audio_transcribe.py` — core script (stdlib urllib + base64, no pip required)
+- `scripts/audio_transcribe.py` — Core script using ElevenLabs Scribe v1 STT API

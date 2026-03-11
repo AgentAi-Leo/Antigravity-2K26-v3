@@ -25,10 +25,9 @@ Adds:
     - Challenges with Google Drive & Sheets Toggle Button In LightMode
     - Made Password Button Nicer/Smaller
     - Made alot of GREAT PROGRESS Today. Well Done!
+    - WOW! Adding Word Tracking/Sentence Tracking via ElevenLabs API
 
-
-/// THIS IS EXELLENT BASE VERSION - GONNA ADD WORD TRACKING NEXT ///
-
+NOTE: ---> Word tracking won't work in Speech2Text because that  uses Kie.ai for transcription, which doesn't provide word-level timestamps. Word tracking is a Text2Speech-only feature — the timestamps come from ElevenLabs when it generates the audio. 
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
