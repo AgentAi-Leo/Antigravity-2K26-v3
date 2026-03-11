@@ -6,7 +6,7 @@ category: AI/Audio
 
 # Kie-ElevenLabs Text-to-Speech Skill
 
-This skill allows the agent and dashboard to convert written text into spoken audio files using the `elevenlabs/text-to-speech-turbo-2-5` model provided by the Kie.ai API.
+> **API**: This skill strictly uses the **Kie.ai API** (ElevenLabs models) for all speech synthesis.
 
 ## Requirements
 - Python 3.10+

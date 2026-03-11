@@ -1,9 +1,11 @@
 ---
 name:
-description: Transcribes audio or video files to specified Google Drive and Google Sheet. Outputs in plain text, PDF and SRT subtitles. Batched files also allowed.
+description: Transcribes audio or video files using the Kie.ai API. Outputs in plain text, PDF and SRT subtitles. Supports Google Drive upload and Google Sheet logging. Batched files also allowed.
 ---
 
-# AI-LLM-Speech2Text Skill
+# AI-LLM-KIE-Speech2Text Skill
+
+> **API**: This skill strictly uses the **Kie.ai API** for all transcription.
 
 ## When to Use This Skill
 - User says "transcribe this audio", "convert speech to text", "transcribe this video", or "generate subtitles"
@@ -15,15 +17,13 @@ description: Transcribes audio or video files to specified Google Drive and Goog
 ## Prerequisites
 
 ```bash
-export KIE_API_KEY="..."       # for kie.ai (ElevenLabs STT, supports most formats)
-# OR: GEMINI_API_KEY             # for Gemini audio
-# OR: OPENAI_API_KEY            # for Whisper
+export KIE_API_KEY="..."    # Required — Kie.ai API key
 ```
 
 ---
 
 ## Workflow
-- [ ] 1. Set API key (`export KIE_API_KEY=...`)
+- [ ] 1. Ensure `KIE_API_KEY` is available in the environment.
 - [ ] 2. Run `scripts/audio_transcribe.py --input recording.mp3`
 - [ ] 3. Review the output text or SRT file
 
@@ -32,7 +32,7 @@ export KIE_API_KEY="..."       # for kie.ai (ElevenLabs STT, supports most forma
 ## Commands
 
 ```bash
-# Transcribe an audio file (uses kie.ai by default)
+# Transcribe an audio file
 python3 scripts/audio_transcribe.py --input meeting.mp3
 
 # Save transcript to file
@@ -43,12 +43,6 @@ python3 scripts/audio_transcribe.py --input video.mp4 --format srt --output subt
 
 # Specify language
 python3 scripts/audio_transcribe.py --input audio.wav --language Spanish
-
-# Use Gemini
-python3 scripts/audio_transcribe.py --input audio.mp3 --provider gemini
-
-# Use Whisper (OpenAI)
-python3 scripts/audio_transcribe.py --input audio.mp3 --provider openai
 ```
 
 ---
@@ -61,21 +55,15 @@ python3 scripts/audio_transcribe.py --input audio.mp3 --provider openai
 | `--output` | stdout | Save transcript to file |
 | `--format` | `text` | `text` or `srt` (subtitles) |
 | `--language` | auto-detect | Source language hint |
-| `--translate-to` | off | Translate output to this language (Gemini only) |
-| `--provider` | `kie` | `kie`, `gemini`, or `openai` |
-| `--model` | None | Override model |
+| `--provider` | `kie` | Strictly `kie` — Kie.ai API only |
 
 ---
 
 ## Supported Formats
 
-| Provider | Formats |
-|---|---|
-| kie.ai | `.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.flac`, etc. |
-| Gemini | `.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.mp4`, `.mov` |
-| OpenAI Whisper | `.mp3`, `.mp4`, `.mpeg`, `.mpga`, `.m4a`, `.wav`, `.webm` |
+`.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.flac`, `.webm`, `.aiff`, `.aif`, `.wma`, `.oga`, `.opus`, `.3gp`, `.mp4`, `.mov`, `.avi`, `.mkv`
 
 ---
 
 ## Resources
-- `scripts/audio_transcribe.py` — core script (stdlib urllib + base64, no pip required)
+- `scripts/audio_transcribe.py` — Core script using Kie.ai STT API
