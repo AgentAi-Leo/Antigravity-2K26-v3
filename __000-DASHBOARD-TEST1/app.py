@@ -465,6 +465,28 @@ def trigger_processing_overlay():
                 // Create the overlay directly on document.body
                 const overlay = document.createElement('div');
                 overlay.id = 'ag-processing-overlay';
+                
+                // Fade out sidebar when processing starts
+                const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+                if (sidebar) {
+                    sidebar.style.transition = 'opacity 1s ease, transform 1s ease';
+                    sidebar.style.opacity = '0';
+                    sidebar.style.transform = 'translateX(-100%)';
+                    setTimeout(function() {
+                        sidebar.style.display = 'none';
+                    }, 1000);
+                }
+                // Scroll to top for consistent positioning on subsequent runs
+                var containers = [
+                    doc.querySelector('[data-testid="stMain"]'),
+                    doc.querySelector('[data-testid="stAppViewContainer"]'),
+                    doc.documentElement,
+                    doc.body
+                ];
+                for (var ci = 0; ci < containers.length; ci++) {
+                    if (containers[ci]) containers[ci].scrollTop = 0;
+                }
+                try { window.parent.scrollTo(0, 0); } catch(e) {}
                 overlay.innerHTML = `
                     <style>
                         #ag-processing-overlay {
@@ -472,7 +494,7 @@ def trigger_processing_overlay():
                             top: 0; left: 0; width: 100vw; height: 100vh;
                             z-index: 999990;
                             display: flex; align-items: center; justify-content: center;
-                            background-color: rgba(0,0,0,0.85);
+                            background-color: rgba(0,0,0,0.97);
                             pointer-events: auto;
                         }
                         #ag-processing-box {
@@ -640,9 +662,40 @@ def trigger_processing_overlay():
                             `;
                             doc.body.appendChild(cOverlay);
                             parentWin.setTimeout(function() {
-                                const el = doc.getElementById('ag-complete-overlay');
+                                var el = doc.getElementById('ag-complete-overlay');
                                 if (el) el.remove();
-                            }, 2100);
+                                
+                                // Create dark curtain to hide scroll
+                                var curtain = doc.createElement('div');
+                                curtain.id = 'ag-scroll-curtain';
+                                curtain.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0a0a0f;opacity:1;z-index:999980;transition:opacity 0.3s ease;pointer-events:none;';
+                                doc.body.appendChild(curtain);
+                                
+                                // Instant scroll while hidden
+                                parentWin.setTimeout(function() {
+                                    var rh = null;
+                                    var allHeaders = doc.querySelectorAll('h1, h2');
+                                    for (var i = 0; i < allHeaders.length; i++) {
+                                        if (allHeaders[i].innerText && allHeaders[i].innerText.indexOf('PROCESSED RESULT') !== -1) {
+                                            rh = allHeaders[i];
+                                            break;
+                                        }
+                                    }
+                                    if (rh) {
+                                        // Simple scroll - try all containers
+                                        var scrollVal = 4800;
+                                        var c1 = doc.querySelector('[data-testid="stMain"]');
+                                        var c2 = doc.querySelector('[data-testid="stAppViewContainer"]');
+                                        if (c1) c1.scrollTop = scrollVal;
+                                        if (c2) c2.scrollTop = scrollVal;
+                                        doc.documentElement.scrollTop = scrollVal;
+                                        doc.body.scrollTop = scrollVal;
+                                        try { parentWin.scrollTo(0, scrollVal); } catch(e) {}
+                                    }
+                                    
+                                    // Curtain stays opaque - post-render scroll will fade it
+                                }, 50);
+                            }, 300);
                             
                             // Play completion sound if available
                             if (doc._agCompletionSoundB64) {
@@ -718,7 +771,7 @@ def trigger_complete_overlay(placeholder):
                                 top: 0; left: 0; width: 100vw; height: 100vh;
                                 z-index: 999990;
                                 display: flex; align-items: center; justify-content: center;
-                                background-color: rgba(0,0,0,0.85);
+                                background-color: rgba(0,0,0,0.97);
                                 pointer-events: none;
                                 animation: agCompleteFade 2s ease-in-out forwards;
                             }}
@@ -751,11 +804,42 @@ def trigger_complete_overlay(placeholder):
                     `;
                     doc.body.appendChild(completeOverlay);
                     
-                    // Auto-remove after animation (2s)
+                    // Auto-remove COMPLETE overlay, then dark curtain + instant scroll + fade reveal
                     setTimeout(function() {{
-                        const el = doc.getElementById('ag-complete-overlay');
+                        var el = doc.getElementById('ag-complete-overlay');
                         if (el) el.remove();
-                    }}, 2100);
+                        
+                        // Create dark curtain to hide scroll
+                        var curtain = doc.createElement('div');
+                        curtain.id = 'ag-scroll-curtain';
+                        curtain.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0a0a0f;opacity:1;z-index:999980;transition:opacity 0.3s ease;pointer-events:none;';
+                        doc.body.appendChild(curtain);
+                        
+                        // Instant scroll to PROCESSED RESULT while curtain hides it
+                        setTimeout(function() {{
+                            var rh = null;
+                            var allHeaders = doc.querySelectorAll('h1, h2');
+                            for (var i = 0; i < allHeaders.length; i++) {{
+                                if (allHeaders[i].innerText && allHeaders[i].innerText.indexOf('PROCESSED RESULT') !== -1) {{
+                                    rh = allHeaders[i];
+                                    break;
+                                }}
+                            }}
+                            if (rh) {{
+                                // Simple scroll - try all containers
+                                var scrollVal = 4800;
+                                var c1 = doc.querySelector('[data-testid="stMain"]');
+                                var c2 = doc.querySelector('[data-testid="stAppViewContainer"]');
+                                if (c1) c1.scrollTop = scrollVal;
+                                if (c2) c2.scrollTop = scrollVal;
+                                doc.documentElement.scrollTop = scrollVal;
+                                doc.body.scrollTop = scrollVal;
+                                try {{ window.parent.scrollTo(0, scrollVal); }} catch(e) {{}}
+                            }}
+                            
+                            // Curtain stays opaque - post-render scroll will fade it
+                        }}, 50);
+                    }}, 300);
                 </script>
             """, height=0)
 
@@ -2861,8 +2945,10 @@ if should_run:
             st.error(f"❌ Error executing skill: {str(e)}")
         finally:
             main_spinner.empty()
+            st.session_state["_scroll_to_result"] = True
+            st.session_state["_delay_autoplay"] = True
             trigger_complete_overlay(proc_overlay)
-            time.sleep(2)
+            time.sleep(0.5)
 
 
 
@@ -2966,6 +3052,25 @@ def show_result_popup(text: str):
         if is_media:
             st.markdown(f"**Playing {idx + 1} of {len(processed_files)}**: `{current_file['name']}`") # type: ignore
             st.audio(current_file["bytes"], format=mime_type, autoplay=True, loop=True) # type: ignore
+            # Delay autoplay by 1 second so user can see results first
+            if st.session_state.pop("_delay_autoplay", False):
+                components.html("""
+                    <script>
+                        (function() {
+                            var audios = window.parent.document.querySelectorAll('audio');
+                            for (var i = 0; i < audios.length; i++) {
+                                audios[i].pause();
+                                audios[i].currentTime = 0;
+                            }
+                            setTimeout(function() {
+                                var audios2 = window.parent.document.querySelectorAll('audio');
+                                for (var j = 0; j < audios2.length; j++) {
+                                    try { audios2[j].play(); } catch(e) {}
+                                }
+                            }, 1000);
+                        })();
+                    </script>
+                """, height=0)
             # stats_badge_text extracted below — pass it here so it appears inline with speed controls
             _stats_for_speed = ""
             import re as _re_pre
@@ -3012,12 +3117,14 @@ def show_result_popup(text: str):
                     # Prevent going below 0
                     set_skill_state("file_index", max(0, idx - 1))
                     set_skill_state("auto_open_result", True)
+                    st.session_state["_scroll_to_result"] = True
                     st.rerun()
             with col_next:
                 st.markdown("<div class='nav-btn-marker' style='display:none;'></div>", unsafe_allow_html=True)
                 if st.button(f"Next {label_type} ⏭", key="next_clip_btn", use_container_width=True):
                     set_skill_state("file_index", min(idx + 1, len(processed_files) - 1))
                     set_skill_state("auto_open_result", True)
+                    st.session_state["_scroll_to_result"] = True
                     st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
             
@@ -3459,3 +3566,47 @@ if last_output:
     # We use a container to visually separate the result
     with st.container():
         show_result_popup(last_output)
+        
+        # Post-render scroll to PROCESSED RESULT header
+        # This runs AFTER Streamlit finishes rendering, so scroll won't be reset
+        if st.session_state.get("_scroll_to_result"):
+            st.session_state["_scroll_to_result"] = False
+            components.html("""
+                <script>
+                    (function() {
+                        var doc = window.parent.document;
+                        var allHeaders = doc.querySelectorAll('h1, h2');
+                        var rh = null;
+                        for (var i = 0; i < allHeaders.length; i++) {
+                            if (allHeaders[i].innerText && allHeaders[i].innerText.indexOf('PROCESSED RESULT') !== -1) {
+                                rh = allHeaders[i];
+                                break;
+                            }
+                        }
+                        if (rh) {
+                            // Find nearest scrollable ancestor
+                            var sp = rh.parentElement;
+                            while (sp) {
+                                var cs = window.parent.getComputedStyle(sp);
+                                if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && sp.scrollHeight > sp.clientHeight) break;
+                                sp = sp.parentElement;
+                            }
+                            if (sp) {
+                                var targetPos = rh.getBoundingClientRect().top - sp.getBoundingClientRect().top + sp.scrollTop - 80;
+                                sp.scrollTop = targetPos;
+                            }
+                            // Also try window and common containers as fallback
+                            try { window.parent.scrollTo(0, rh.getBoundingClientRect().top + window.parent.pageYOffset - 80); } catch(e) {}
+                        }
+                        
+                        // Now fade out the curtain (scroll is in correct position)
+                        var curtain = doc.getElementById('ag-scroll-curtain');
+                        if (curtain) {
+                            setTimeout(function() {
+                                curtain.style.opacity = '0';
+                                setTimeout(function() { curtain.remove(); }, 500);
+                            }, 50);
+                        }
+                    })();
+                </script>
+            """, height=0)

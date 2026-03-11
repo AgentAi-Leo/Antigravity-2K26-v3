@@ -27,7 +27,9 @@ Adds:
     - Made alot of GREAT PROGRESS Today. Well Done!
     - WOW! Adding Word Tracking/Sentence Tracking via ElevenLabs API
     - Vers L Static Sync Text - Better Sizing & Highlighting
-    - May Add Dropdown Menu For Style Selection
+    - Added .2s Curtain FX For Sidebar Fade/Scroll To Final Results 
+    - CONSIDER: Adding Dropdown Menu For Style Selection
+
     
 
 
