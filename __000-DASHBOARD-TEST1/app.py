@@ -251,22 +251,21 @@ def render_word_tracker(alignment_data, clip_name="", estimated=False):
     
     words_html = " ".join(word_spans)
     
-    # Calculate appropriate height based on word count
-    estimated_lines = max(1, len(words) // 12)
-    container_height = min(400, max(120, estimated_lines * 28 + 60))
+    # Calculate appropriate height for the component iframe
+    # At 31px font, ~5 words per line centered, 62px per line (31*2.0), plus 76px padding (38*2)
+    words_per_line = max(1, 5)
+    estimated_lines = max(1, (len(words) + words_per_line - 1) // words_per_line)
+    container_height = estimated_lines * 62 + 100
     
     components.html(f"""
         <style>
             body {{ margin: 0; padding: 0; background: transparent; }}
             .wt-container {{
                 font-family: inherit;
-                font-size: 23px;
-                line-height: 1.8;
+                font-size: 31px;
+                line-height: 2.0;
                 color: #ffffff;
-                padding: 28px;
-                max-height: {container_height - 20}px;
-                overflow-y: auto;
-                scroll-behavior: smooth;
+                padding: 38px;
                 background-color: #000000;
                 border-radius: 10px;
                 border: 2px solid #ffffff;
@@ -278,7 +277,7 @@ def render_word_tracker(alignment_data, clip_name="", estimated=False):
             .wt-container::-webkit-scrollbar-thumb {{ background: rgba(255, 255, 255, 0.3); border-radius: 3px; }}
             .wt-word {{
                 display: inline;
-                padding: 2px 4px;
+                padding: 3px 5px;
                 border-radius: 4px;
                 transition: all 0.18s ease;
                 cursor: default;
@@ -320,14 +319,11 @@ def render_word_tracker(alignment_data, clip_name="", estimated=False):
                 let activeIdx = -1;
                 for (let i = wordEls.length - 1; i >= 0; i--) {{
                     const start = parseFloat(wordEls[i].dataset.start || '0');
-                    if (currentTime >= start - 0.05) {{
+                    if (currentTime >= start - 0.3) {{
                         activeIdx = i;
                         break;
                     }}
                 }}
-                
-                if (activeIdx === lastActiveIdx) return;
-                lastActiveIdx = activeIdx;
                 
                 wordEls.forEach((el, idx) => {{
                     el.classList.remove('active', 'past');
@@ -339,56 +335,31 @@ def render_word_tracker(alignment_data, clip_name="", estimated=False):
                         }}
                     }}
                 }});
-                
-                // Auto-scroll to keep active word visible
-                if (followEnabled && activeIdx >= 0) {{
-                    const activeEl = wordEls[activeIdx];
-                    const containerRect = container.getBoundingClientRect();
-                    const elRect = activeEl.getBoundingClientRect();
-                    const relativeTop = elRect.top - containerRect.top;
-                    
-                    if (relativeTop > containerRect.height * 0.65 || relativeTop < 0) {{
-                        activeEl.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
-                    }}
-                }}
             }}
             
-            // Poll for audio timeupdate from parent Streamlit DOM
+            // Use setInterval for consistent timing (RAF gets deprioritized in iframes)
             const parentDoc = window.parent.document;
+            let boundAudio = null;
+            
             function pollAudio() {{
                 const audios = parentDoc.querySelectorAll('audio');
                 if (audios.length > 0) {{
                     const audio = audios[audios.length - 1];
-                    // For estimated mode, compute timings from audio.duration
                     if (isEstimated && audio.duration && !isNaN(audio.duration)) {{
                         setEstimatedTimings(audio.duration);
                     }}
-                    if (!audio._wtBound) {{
-                        audio._wtBound = true;
-                        audio.addEventListener('timeupdate', function() {{
-                            if (isEstimated && !estimatedTimingsSet && audio.duration) {{
-                                setEstimatedTimings(audio.duration);
-                            }}
-                            updateHighlight(audio.currentTime);
-                        }});
-                        audio.addEventListener('seeked', function() {{
-                            lastActiveIdx = -1;
-                            updateHighlight(audio.currentTime);
-                        }});
+                    if (boundAudio !== audio) {{
+                        boundAudio = audio;
                     }}
                     updateHighlight(audio.currentTime);
                 }}
             }}
             
-            pollAudio();
-            setInterval(pollAudio, 1000);
+            // Consistent 30ms interval — reliable in iframes unlike RAF
+            setInterval(pollAudio, 30);
             
-            let fastPollCount = 0;
-            const fastPoll = setInterval(function() {{
-                pollAudio();
-                fastPollCount++;
-                if (fastPollCount > 20) clearInterval(fastPoll);
-            }}, 200);
+            // Also do initial fast binding
+            pollAudio();
         </script>
     """, height=container_height + 30)
 
@@ -899,6 +870,8 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
                 # Text2Speech backend log lines
                 "Initializing ElevenLabs", "Generating audio",
                 "Saving to ", "**Backend", "____", "───",
+                # Alignment sidecar log
+                "Alignment saved",
             )
             lines = [l for l in final_text.splitlines() if not l.startswith(ignore_prefixes)]
             transcript = "\n".join(lines).strip()
@@ -929,11 +902,23 @@ def process_uploaded_files(file_paths, selected_skill, run_env, base_args_input=
             if usage_line:
                 transcript += f"\n\n**Statistics:** {usage_line.split(':', 1)[-1].strip()}"
             
+            # Load word-level alignment JSON for synchronized text highlighting (STT)
+            import json as _json_stt
+            stt_alignment = None
+            stt_align_path: str = os.path.splitext(fp)[0] + ".alignment.json"
+            if os.path.exists(stt_align_path):
+                try:
+                    with open(stt_align_path, "r", encoding="utf-8") as alf:
+                        stt_alignment = _json_stt.load(alf)
+                except Exception:
+                    pass
+            
             results.append({
                 "name": os.path.basename(fp),
                 "original_name": os.path.basename(fp),
                 "bytes": open(fp, "rb").read() if os.path.exists(fp) else b"",
                 "transcript": transcript,
+                "alignment": stt_alignment,
             })
         else:
             if "__ANTIGRAVITY_API_QUOTA_EXCEEDED__" in final_text:

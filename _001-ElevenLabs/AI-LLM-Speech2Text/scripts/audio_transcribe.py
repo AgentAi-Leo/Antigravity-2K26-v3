@@ -74,8 +74,10 @@ def _call_whisper(audio_path: str, language: str | None, translate: bool, api_ke
         return json.loads(resp.read())["text"].strip()
 
 
-def _call_elevenlabs_stt(audio_path: str, language: str | None, api_key: str) -> str:
-    """Call ElevenLabs Speech-to-Text via multipart form upload."""
+def _call_elevenlabs_stt(audio_path: str, language: str | None, api_key: str) -> tuple[str, dict | None]:
+    """Call ElevenLabs Speech-to-Text via multipart form upload.
+    Returns (text, alignment_data) where alignment_data has words/start_times/end_times.
+    """
     ext = os.path.splitext(audio_path)[1].lower().lstrip(".")
     mime = GEMINI_MIME.get(f".{ext}", f"audio/{ext}")
 
@@ -102,7 +104,22 @@ def _call_elevenlabs_stt(audio_path: str, language: str | None, api_key: str) ->
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read())
-            return data.get("text", "").strip()
+            text = data.get("text", "").strip()
+            
+            # Extract word-level timestamps for alignment
+            alignment = None
+            words_data = data.get("words", [])
+            if words_data:
+                words = []
+                start_times = []
+                end_times = []
+                for w in words_data:
+                    words.append(w.get("text", ""))
+                    start_times.append(w.get("start", 0))
+                    end_times.append(w.get("end", 0))
+                alignment = {"words": words, "start_times": start_times, "end_times": end_times}
+            
+            return text, alignment
     except urllib.error.HTTPError as e:
         err = e.read().decode("utf-8", errors="replace")
         if e.code == 429 or "quota_exceeded" in err.lower():
@@ -154,10 +171,12 @@ def main() -> None:
 
     print(f"Transcribing: {args.input}  (provider: {args.provider})")
 
+    stt_alignment = None  # Word-level alignment from ElevenLabs STT
+    
     if args.provider == "elevenlabs":
         api_key = os.environ.get("ELEVENLABS_API_KEY", "")
         if not api_key: print("Error: ELEVENLABS_API_KEY not set."); sys.exit(1)
-        result = _call_elevenlabs_stt(args.input, args.language, api_key)
+        result, stt_alignment = _call_elevenlabs_stt(args.input, args.language, api_key)
     elif args.provider == "openai":
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key: print("Error: OPENAI_API_KEY not set."); sys.exit(1)
@@ -182,10 +201,24 @@ def main() -> None:
         with open(args.output, "w", encoding="utf-8") as f:
             f.write(result + "\n")
         print(f"Saved: {args.output}")
+        
+        # Save alignment data sidecar alongside output
+        if stt_alignment:
+            align_path = os.path.splitext(args.output)[0] + ".alignment.json"
+            with open(align_path, "w", encoding="utf-8") as af:
+                json.dump(stt_alignment, af, indent=2)
+            sys.stderr.write(f"Alignment saved: {align_path}\n")
     else:
         print(result)
         # Emit word/char stats for the dashboard statistics badge
         sys.stderr.write(f"Usage: {len(result.split())} words, {len(result)} characters\n")
+        
+        # Save alignment alongside input file if available
+        if stt_alignment:
+            align_path = os.path.splitext(args.input)[0] + ".alignment.json"
+            with open(align_path, "w", encoding="utf-8") as af:
+                json.dump(stt_alignment, af, indent=2)
+            sys.stderr.write(f"Alignment saved: {align_path}\n")
 
     # Optional: Auto-upload to Google Drive
     drive_link = ""

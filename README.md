@@ -26,6 +26,8 @@ Adds:
     - Made Password Button Nicer/Smaller
     - Made alot of GREAT PROGRESS Today. Well Done!
     - WOW! Adding Word Tracking/Sentence Tracking via ElevenLabs API
+    - Difficulties In Achieving Perfect Syncing of Audio & Text
+    - 
 
 
 .gitignore hardened — these will never be committed to GitHub:
