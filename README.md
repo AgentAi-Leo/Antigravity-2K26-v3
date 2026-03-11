@@ -26,7 +26,7 @@ Adds:
     - Made Password Button Nicer/Smaller
     - Made alot of GREAT PROGRESS Today. Well Done!
     - WOW! Adding Word Tracking/Sentence Tracking via ElevenLabs API
-    - Vers J (ANIMATED TEXT) Will Eleminate Moving Forward
+    - Vers K Static Sync Text
     - 
 
 
