@@ -2395,32 +2395,28 @@ if is_pdf_skill:
                             st.markdown(f"**✅ Processed** ({len(_all_processed_files)} files):")
                             for _date_label, _fname in _all_processed_files:
                                 st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;📄 `{_fname}` &nbsp;·&nbsp; {_date_label}")
+                    
+                    # Hidden rerun trigger (inside collapsed expander = naturally hidden)
+                    _wf_rerun_clicked = st.button("⟳", key="_wf_rerun_trigger", type="secondary")
                 
-                # Hidden rerun trigger + JS timer (combined: hide on load + click on interval)
-                _wf_rerun_clicked = st.button("⟳", key="_wf_rerun_trigger", type="secondary")
+                # JS timer — finds button inside expander DOM and clicks it on interval
                 st.components.v1.html(
                     f"""
                     <script>
                     (function() {{
                         const doc = window.parent.document;
-                        // Find and hide the rerun button immediately
-                        function hideRerunBtn() {{
+                        function findRerunBtn() {{
                             const btns = doc.querySelectorAll('button[kind="secondary"]');
                             for (const b of btns) {{
-                                if (b.textContent.trim() === '⟳') {{
-                                    b.closest('[data-testid="stButton"]').style.cssText = 'position:absolute;left:-9999px;height:0;overflow:hidden;pointer-events:none;';
-                                    return b;
-                                }}
+                                if (b.textContent.trim() === '⟳') return b;
                             }}
                             return null;
                         }}
-                        hideRerunBtn();
-                        // Clear any existing timer
                         if (window.parent._watchFolderTimer) {{
                             clearInterval(window.parent._watchFolderTimer);
                         }}
                         window.parent._watchFolderTimer = setInterval(function() {{
-                            const btn = hideRerunBtn();
+                            const btn = findRerunBtn();
                             if (btn) btn.click();
                         }}, {_watch_interval_ms});
                     }})();
