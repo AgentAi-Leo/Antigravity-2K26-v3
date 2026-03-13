@@ -2190,10 +2190,7 @@ if is_pdf_skill:
     with _wf_col_toggle:
         watch_folder_on = st.toggle("📂 Watch Folder Auto-Process", value=st.session_state.get("_watch_folder_on", False), key="_watch_folder_on")
     with _wf_col_clear:
-        # Show clear button only if there's a saved config
-        if os.path.exists(_wf_config_path) or st.session_state.get("_wf_picked_path") or st.session_state.get("_wf_typed_path"):
-            st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
-            st.button("🗑️ Clear Watch Folder", on_click=_wf_clear_config, key="_wf_clear_btn")
+        pass  # Clear button moved below
     
     if watch_folder_on:
         # --- Folder picker via macOS native dialog (synchronous in callback) ---
@@ -2225,7 +2222,8 @@ if is_pdf_skill:
                 if os.path.isdir(_expanded):
                     subprocess.Popen(["open", _expanded])
         
-        _wf_col_path, _wf_col_browse, _wf_col_interval = st.columns([3, 0.8, 1.2])
+        # Row 1: Path input + Polling Interval
+        _wf_col_path, _wf_col_interval = st.columns([4, 1.2])
         with _wf_col_path:
             st.markdown('<span style="color: #FF8C00; font-weight: 600;">Watch Folder Path</span>', unsafe_allow_html=True)
             watch_folder_path = st.text_input(
@@ -2235,12 +2233,20 @@ if is_pdf_skill:
                 key="_wf_typed_path",
                 label_visibility="collapsed"
             )
+            # Inject native title tooltip on the text input for full path on hover
+            _tt_path = (_wf_display_path or "").replace("'", "\\'")
+            st.components.v1.html(f"""
+                <script>
+                (function() {{
+                    var doc = window.parent.document;
+                    var el = doc.querySelector('input[aria-label="Watch Folder Path"]');
+                    if (el) {{ el.title = '{_tt_path}'; }}
+                }})();
+                </script>
+            """, height=0)
             # If user typed a path manually, clear the picked path so typed takes precedence
             if watch_folder_path and watch_folder_path != st.session_state.get("_wf_picked_path", ""):
                 st.session_state.pop("_wf_picked_path", None)
-        with _wf_col_browse:
-            st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
-            st.button("📁 Create", on_click=_pick_folder_dialog, use_container_width=True, key="_wf_browse_btn")
         with _wf_col_interval:
             # Show spinner only when there are pending files being processed
             _is_actively_polling = bool(st.session_state.get("_wf_pending_count", 0))
@@ -2257,11 +2263,20 @@ if is_pdf_skill:
             _interval_options = ["15 minutes", "1 minute", "5 seconds"]
             st.session_state["_watch_interval_idx"] = _interval_options.index(watch_interval_label) if watch_interval_label in _interval_options else 2
         
-        # Open button on its own row — dynamically sized to fit any folder name
+        # Row 2: Action buttons — CREATE (primary) | OPEN | CLEAR — all in one line
         _wf_effective_path = watch_folder_path or _wf_display_path
         _has_valid_path = bool(_wf_effective_path) and os.path.isdir(os.path.expanduser(_wf_effective_path))
         _wf_folder_name = os.path.basename(os.path.expanduser(_wf_effective_path).rstrip("/")) if _wf_effective_path else "Open"
-        st.button(f"📂 {_wf_folder_name}", on_click=_open_folder_in_finder, key="_wf_open_btn", disabled=not _has_valid_path)
+        _has_config = os.path.exists(_wf_config_path) or st.session_state.get("_wf_picked_path") or st.session_state.get("_wf_typed_path")
+        
+        _btn_cols = st.columns([1, 1, 1, 2]) if _has_config else st.columns([1, 1, 3])
+        with _btn_cols[0]:
+            st.button("📁 Create", on_click=_pick_folder_dialog, use_container_width=True, key="_wf_browse_btn", type="primary")
+        with _btn_cols[1]:
+            st.button(f"📂 {_wf_folder_name}", on_click=_open_folder_in_finder, key="_wf_open_btn", disabled=not _has_valid_path, use_container_width=True)
+        if _has_config:
+            with _btn_cols[2]:
+                st.button("🗑️ Clear", on_click=_wf_clear_config, key="_wf_clear_btn", use_container_width=True)
         
         # Style buttons + spinner animation
         st.markdown("""
@@ -2362,6 +2377,30 @@ if is_pdf_skill:
                                 if _full_stdout:
                                     st.session_state["_wf_last_output"] = _full_stdout
                                     st.session_state["_wf_last_output_time"] = _wf_dt.datetime.now().strftime("%-I:%M:%S %p")
+                                    
+                                    # Feed processed PDFs into the main PROCESSED RESULT display
+                                    _today_str = _wf_dt.date.today().strftime("%Y-%m-%d")
+                                    _today_dir = os.path.join(_resolved_watch_path, "zProcessed", _today_str)
+                                    if os.path.isdir(_today_dir):
+                                        _wf_processed_files = []
+                                        for _pdf_entry in sorted(os.scandir(_today_dir), key=lambda e: e.name):
+                                            if _pdf_entry.is_file() and _pdf_entry.name.lower().endswith(".pdf"):
+                                                try:
+                                                    with open(_pdf_entry.path, "rb") as _pf:
+                                                        _pdf_bytes = _pf.read()
+                                                    _wf_processed_files.append({
+                                                        "name": _pdf_entry.name,
+                                                        "bytes": _pdf_bytes,
+                                                        "transcript": f"✅ Converted: {_pdf_entry.name}",
+                                                        "content_preview": "",
+                                                    })
+                                                except (OSError, IOError):
+                                                    pass
+                                        if _wf_processed_files:
+                                            set_skill_state("last_processed_files", _wf_processed_files)
+                                            set_skill_state("last_output", _full_stdout)
+                                            set_skill_state("file_index", 0)
+                                
                                 if _proc_result.stderr.strip():
                                     st.session_state["_wf_last_errors"] = _proc_result.stderr.strip()
                                 else:
@@ -2398,6 +2437,42 @@ if is_pdf_skill:
                     
                     # Hidden rerun trigger (inside collapsed expander = naturally hidden)
                     _wf_rerun_clicked = st.button("⟳", key="_wf_rerun_trigger", type="secondary")
+                
+                # Persistently load processed PDFs into PROCESSED RESULT section
+                # Only runs if processing happened this session (not on initial page load)
+                import datetime as _wf_dt2
+                _processed_dir2 = os.path.join(_resolved_watch_path, "zProcessed")
+                _wf_has_run_this_session = bool(st.session_state.get("_wf_last_output"))
+                if os.path.isdir(_processed_dir2) and _wf_has_run_this_session and not get_skill_state("last_processed_files"):
+                    _wf_all_pdfs = []
+                    # Scan all date directories (newest first)
+                    try:
+                        _date_dirs = sorted(os.scandir(_processed_dir2), key=lambda d: d.name, reverse=True)
+                    except OSError:
+                        _date_dirs = []
+                    for _dd in _date_dirs:
+                        if _dd.is_dir():
+                            try:
+                                for _pe in sorted(os.scandir(_dd.path), key=lambda e: e.name):
+                                    if _pe.is_file() and _pe.name.lower().endswith(".pdf"):
+                                        try:
+                                            with open(_pe.path, "rb") as _rpf:
+                                                _rpf_bytes = _rpf.read()
+                                            _wf_all_pdfs.append({
+                                                "name": _pe.name,
+                                                "bytes": _rpf_bytes,
+                                                "transcript": f"✅ Converted: {_pe.name} ({_dd.name})",
+                                                "content_preview": "",
+                                            })
+                                        except (OSError, IOError):
+                                            pass
+                            except OSError:
+                                pass
+                    if _wf_all_pdfs:
+                        set_skill_state("last_processed_files", _wf_all_pdfs)
+                        _wf_summary = f"Watch folder: {len(_wf_all_pdfs)} file(s) converted to PDF"
+                        set_skill_state("last_output", _wf_summary)
+                        set_skill_state("file_index", 0)
                 
                 # JS timer — finds button inside expander DOM and clicks it on interval
                 st.components.v1.html(
@@ -3886,31 +3961,7 @@ if last_output:
                 <script>
                     (function() {
                         var doc = window.parent.document;
-                        var allHeaders = doc.querySelectorAll('h1, h2');
-                        var rh = null;
-                        for (var i = 0; i < allHeaders.length; i++) {
-                            if (allHeaders[i].innerText && allHeaders[i].innerText.indexOf('PROCESSED RESULT') !== -1) {
-                                rh = allHeaders[i];
-                                break;
-                            }
-                        }
-                        if (rh) {
-                            // Find nearest scrollable ancestor
-                            var sp = rh.parentElement;
-                            while (sp) {
-                                var cs = window.parent.getComputedStyle(sp);
-                                if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && sp.scrollHeight > sp.clientHeight) break;
-                                sp = sp.parentElement;
-                            }
-                            if (sp) {
-                                var targetPos = rh.getBoundingClientRect().top - sp.getBoundingClientRect().top + sp.scrollTop - 80;
-                                sp.scrollTop = targetPos;
-                            }
-                            // Also try window and common containers as fallback
-                            try { window.parent.scrollTo(0, rh.getBoundingClientRect().top + window.parent.pageYOffset - 80); } catch(e) {}
-                        }
-                        
-                        // Now fade out the curtain (scroll is in correct position)
+                        // Just fade the curtain - don't re-scroll (curtain scroll already correct)
                         var curtain = doc.getElementById('ag-scroll-curtain');
                         if (curtain) {
                             setTimeout(function() {
