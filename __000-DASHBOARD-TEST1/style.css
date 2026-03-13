@@ -46,10 +46,10 @@
     /* 100% larger than default */
 }
 
-/* 6. Login Page & Accent Elements - RESTRICTED TO LOGIN PAGE via :has() */
+/* 6. Login Page & Accent Elements - RESTRICTED TO LOGIN PAGE via .login-page class */
 /* Style secondary and form-submit buttons (Unlock) yellow and match size to Browse button */
-.stApp:has(.login-container) button[data-testid*="secondary"],
-.stApp:has(.login-container) button[data-testid="stFormSubmitButton"] {
+.login-page button[data-testid*="secondary"],
+.login-page [data-testid="stFormSubmitButton"] button {
     background-color: #ffe700 !important;
     color: #000000 !important;
     font-weight: bold !important;
@@ -61,21 +61,21 @@
     width: auto !important;
 }
 
-.stApp:has(.login-container) button[data-testid*="secondary"]:hover,
-.stApp:has(.login-container) button[data-testid="stFormSubmitButton"]:hover {
+.login-page button[data-testid*="secondary"]:hover,
+.login-page [data-testid="stFormSubmitButton"] button:hover {
     background-color: #ffd600 !important;
     border-color: #ffd600 !important;
 }
 
 
 /* Ensure password visibility toggle stays yellow/black */
-.login-container div[data-testid="stTextInput"] button {
+.login-page div[data-testid="stTextInput"] button {
     background-color: #ffe700 !important;
     color: #000000 !important;
     border: 1px solid #ffe700 !important;
 }
 
-.login-container div[data-testid="stTextInput"] button svg {
+.login-page div[data-testid="stTextInput"] button svg {
     fill: #000000 !important;
     color: #000000 !important;
 }

@@ -438,11 +438,15 @@ def trigger_processing_overlay():
                 doc.querySelectorAll('.centered-overlay-complete').forEach(el => el.remove());
                 const oldCompleteOverlay = doc.getElementById('ag-complete-overlay');
                 if (oldCompleteOverlay) oldCompleteOverlay.remove();
-                // Clear any previous polling interval
+                // Clear any previous polling interval and safety timeout
+                const pw = doc.defaultView || window.parent;
                 if (doc._agCleanupInterval) {
-                    const pw = doc.defaultView || window.parent;
                     pw.clearInterval(doc._agCleanupInterval);
                     doc._agCleanupInterval = null;
+                }
+                if (doc._agSafetyTimeout) {
+                    pw.clearTimeout(doc._agSafetyTimeout);
+                    doc._agSafetyTimeout = null;
                 }
                 
                 // Store completion sound for later use by polling callback
@@ -620,6 +624,11 @@ def trigger_processing_overlay():
                         const o = doc.getElementById('ag-processing-overlay');
                         if (o) o.remove();
                         parentWin.clearInterval(cleanupInterval);
+                        // Clear safety timeout since we completed normally
+                        if (doc._agSafetyTimeout) {
+                            parentWin.clearTimeout(doc._agSafetyTimeout);
+                            doc._agSafetyTimeout = null;
+                        }
                         doc._agCleanupInterval = null;
                         
                         // Show COMPLETE overlay (embedded here so it doesn't depend on a separate iframe)
@@ -665,36 +674,15 @@ def trigger_processing_overlay():
                                 var el = doc.getElementById('ag-complete-overlay');
                                 if (el) el.remove();
                                 
-                                // Create dark curtain to hide scroll
+                                // Curtain reveal — fade out to reveal result overlay
                                 var curtain = doc.createElement('div');
                                 curtain.id = 'ag-scroll-curtain';
-                                curtain.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0a0a0f;opacity:1;z-index:999980;transition:opacity 0.3s ease;pointer-events:none;';
+                                curtain.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0a0a0f;opacity:1;z-index:999980;transition:opacity 0.6s ease;pointer-events:none;';
                                 doc.body.appendChild(curtain);
-                                
-                                // Instant scroll while hidden
                                 parentWin.setTimeout(function() {
-                                    var rh = null;
-                                    var allHeaders = doc.querySelectorAll('h1, h2');
-                                    for (var i = 0; i < allHeaders.length; i++) {
-                                        if (allHeaders[i].innerText && allHeaders[i].innerText.indexOf('PROCESSED RESULT') !== -1) {
-                                            rh = allHeaders[i];
-                                            break;
-                                        }
-                                    }
-                                    if (rh) {
-                                        // Simple scroll - try all containers
-                                        var scrollVal = 4800;
-                                        var c1 = doc.querySelector('[data-testid="stMain"]');
-                                        var c2 = doc.querySelector('[data-testid="stAppViewContainer"]');
-                                        if (c1) c1.scrollTop = scrollVal;
-                                        if (c2) c2.scrollTop = scrollVal;
-                                        doc.documentElement.scrollTop = scrollVal;
-                                        doc.body.scrollTop = scrollVal;
-                                        try { parentWin.scrollTo(0, scrollVal); } catch(e) {}
-                                    }
-                                    
-                                    // Curtain stays opaque - post-render scroll will fade it
-                                }, 50);
+                                    curtain.style.opacity = '0';
+                                    parentWin.setTimeout(function() { curtain.remove(); }, 700);
+                                }, 100);
                             }, 300);
                             
                             // Play completion sound if available
@@ -710,6 +698,24 @@ def trigger_processing_overlay():
                 }, 500);
                 // Store interval ID so it can be cleared on subsequent processing runs
                 doc._agCleanupInterval = cleanupInterval;
+                
+                // SAFETY TIMEOUT: Auto-remove overlay after 5 minutes in case
+                // polling is orphaned (e.g. st.stop() destroys iframe context)
+                doc._agSafetyTimeout = parentWin.setTimeout(function() {
+                    const staleOverlay = doc.getElementById('ag-processing-overlay');
+                    if (staleOverlay) staleOverlay.remove();
+                    if (doc._agCleanupInterval) {
+                        parentWin.clearInterval(doc._agCleanupInterval);
+                        doc._agCleanupInterval = null;
+                    }
+                    // Restore sidebar if it was hidden
+                    const sb = doc.querySelector('[data-testid="stSidebar"]');
+                    if (sb) {
+                        sb.style.display = '';
+                        sb.style.opacity = '1';
+                        sb.style.transform = '';
+                    }
+                }, 300000);
             </script>
         """, height=0)
         
@@ -804,41 +810,20 @@ def trigger_complete_overlay(placeholder):
                     `;
                     doc.body.appendChild(completeOverlay);
                     
-                    // Auto-remove COMPLETE overlay, then dark curtain + instant scroll + fade reveal
+                    // Auto-remove COMPLETE overlay, then curtain reveal
                     setTimeout(function() {{
                         var el = doc.getElementById('ag-complete-overlay');
                         if (el) el.remove();
                         
-                        // Create dark curtain to hide scroll
+                        // Curtain reveal — fade out to reveal result overlay
                         var curtain = doc.createElement('div');
                         curtain.id = 'ag-scroll-curtain';
-                        curtain.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0a0a0f;opacity:1;z-index:999980;transition:opacity 0.3s ease;pointer-events:none;';
+                        curtain.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0a0a0f;opacity:1;z-index:999980;transition:opacity 0.6s ease;pointer-events:none;';
                         doc.body.appendChild(curtain);
-                        
-                        // Instant scroll to PROCESSED RESULT while curtain hides it
                         setTimeout(function() {{
-                            var rh = null;
-                            var allHeaders = doc.querySelectorAll('h1, h2');
-                            for (var i = 0; i < allHeaders.length; i++) {{
-                                if (allHeaders[i].innerText && allHeaders[i].innerText.indexOf('PROCESSED RESULT') !== -1) {{
-                                    rh = allHeaders[i];
-                                    break;
-                                }}
-                            }}
-                            if (rh) {{
-                                // Simple scroll - try all containers
-                                var scrollVal = 4800;
-                                var c1 = doc.querySelector('[data-testid="stMain"]');
-                                var c2 = doc.querySelector('[data-testid="stAppViewContainer"]');
-                                if (c1) c1.scrollTop = scrollVal;
-                                if (c2) c2.scrollTop = scrollVal;
-                                doc.documentElement.scrollTop = scrollVal;
-                                doc.body.scrollTop = scrollVal;
-                                try {{ window.parent.scrollTo(0, scrollVal); }} catch(e) {{}}
-                            }}
-                            
-                            // Curtain stays opaque - post-render scroll will fade it
-                        }}, 50);
+                            curtain.style.opacity = '0';
+                            setTimeout(function() {{ curtain.remove(); }}, 700);
+                        }}, 100);
                     }}, 300);
                 </script>
             """, height=0)
@@ -1575,21 +1560,80 @@ def check_password():
     """Returns True if the user has entered the correct GCP secret password."""
     load_css() # Apply styles to login screen
     if st.session_state.get("authenticated", False):
+        # Remove login-page centering class if it lingers from previous render
+        st.components.v1.html("""
+        <script>
+        (function() {
+            var appEl = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
+            if (appEl) appEl.classList.remove('login-page');
+        })();
+        </script>
+        """, height=0)
         return True
 
 
 
-    st.markdown("<div class='login-container'>", unsafe_allow_html=True)
+    # --- Center the entire login screen via JS class injection + CSS ---
+    st.markdown("""
+    <style>
+    /* When login-page class is present, center everything */
+    .login-page [data-testid="stMainBlockContainer"] {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 80vh;
+        text-align: center;
+    }
+    /* Center the title */
+    .login-page [data-testid="stMainBlockContainer"] h1 {
+        text-align: center;
+        width: 100%;
+    }
+    /* Center the form submit button */
+    .login-page [data-testid="stFormSubmitButton"] {
+        display: flex;
+        justify-content: center;
+    }
+    .login-page [data-testid="stFormSubmitButton"] button {
+        min-width: 160px;
+    }
+    /* Left-align the "Press Enter to submit" helper text */
+    .login-page [data-testid="stForm"] [data-testid="stMarkdown"] {
+        text-align: left;
+    }
+    /* Center spinner/status messages on login page */
+    .login-page [data-testid="stSpinner"],
+    .login-page [data-testid="stStatusWidget"],
+    .login-page .stSpinner {
+        display: flex;
+        justify-content: center;
+        text-align: center;
+        width: 100%;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Inject JS to add 'login-page' class to the app container
+    st.components.v1.html("""
+    <script>
+    (function() {
+        var appEl = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
+        if (appEl && !appEl.classList.contains('login-page')) {
+            appEl.classList.add('login-page');
+        }
+    })();
+    </script>
+    """, height=0)
+
     st.title("🔒 Antigravity Dashboard", anchor=False)
     # Description removed per user request
     
-    
     with st.form("login_form", clear_on_submit=False, border=False):
-        st.markdown('<div class="password-container">', unsafe_allow_html=True)
-        _pw_col, _pw_spacer = st.columns([1, 1])
+        _pw_spacer_l, _pw_col, _pw_spacer_r = st.columns([1, 2, 1])
         with _pw_col:
             password = st.text_input("Password", type="password", placeholder="Enter Password", label_visibility="collapsed")
-            st.markdown("<span style='color: #FFE300; font-size: 0.85em;'>Press Enter to submit</span>", unsafe_allow_html=True)
+            st.markdown("<span style='color: #FFE300; font-size: 0.85em;'>Press RETURN to submit</span>", unsafe_allow_html=True)
         
         # Keybind TAB to focus the password input field
         st.components.v1.html(
@@ -1613,10 +1657,9 @@ def check_password():
             height=0
         )
         
-        # Container for reliable yellow styling
-        st.markdown("<div class='unlock-btn-container'>", unsafe_allow_html=True)
-        unlock_clicked = st.form_submit_button("Unlock", use_container_width=False)
-        st.markdown("</div>", unsafe_allow_html=True)
+        _btn_spacer_l, _btn_col, _btn_spacer_r = st.columns([1, 2, 1])
+        with _btn_col:
+            unlock_clicked = st.form_submit_button("Unlock", use_container_width=True)
     
     if unlock_clicked:
         with st.spinner("Verifying via Google Cloud Secret Manager..."):
@@ -1656,6 +1699,31 @@ def check_password():
 
 if not check_password():
     st.stop()  # Do not render the rest of the app until authenticated
+
+# --- Stale processing overlay cleanup ---
+# If a previous run orphaned the processing overlay (e.g. st.stop() during error),
+# remove it immediately on this re-render so the user isn't stuck.
+import streamlit.components.v1 as _cleanup_components  # type: ignore[import-not-found]
+_cleanup_components.html("""
+    <script>
+        (function() {
+            const doc = window.parent.document;
+            const overlay = doc.getElementById('ag-processing-overlay');
+            const marker = doc.querySelector('.processing-marker');
+            // If overlay exists but no marker, it's stale — remove it
+            if (overlay && !marker) {
+                overlay.remove();
+                // Restore sidebar if it was hidden
+                const sb = doc.querySelector('[data-testid="stSidebar"]');
+                if (sb) {
+                    sb.style.display = '';
+                    sb.style.opacity = '1';
+                    sb.style.transform = '';
+                }
+            }
+        })();
+    </script>
+""", height=0)
 
 
 # -----------------------------------------------------------------------------
@@ -3331,7 +3399,7 @@ if should_run:
             st.error(f"❌ Error executing skill: {str(e)}")
         finally:
             main_spinner.empty()
-            st.session_state["_scroll_to_result"] = True
+            # Result now renders as overlay — no scroll needed
             st.session_state["_delay_autoplay"] = True
             trigger_complete_overlay(proc_overlay)
             time.sleep(0.5)
@@ -3365,11 +3433,11 @@ def show_result_popup(text: str):
     
     # 0. Header & Type Info
     # Hide Streamlit's auto-generated anchor link icon on headers
-    st.markdown("<style>h1 a, h2 a, h3 a { display: none !important; }</style>", unsafe_allow_html=True)
+    st.markdown("<style>h1 a, h2 a, h3 a, h4 a { display: none !important; }</style>", unsafe_allow_html=True)
     if is_google_sheet:
-        st.markdown("<h1 class='processed-header'><span style='filter:none;'>📄</span> GOOGLE SHEET GENERATED</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='processed-header' style='text-align:center;'><span style='filter:none;'>📄</span> GOOGLE SHEET GENERATED</h1>", unsafe_allow_html=True)
     else:
-        st.markdown("<h1 class='processed-header'><span style='filter:none;'>📄</span> PROCESSED RESULT</h1>", unsafe_allow_html=True)
+        st.markdown("<style>.processed-header a {display:none !important;}</style><h1 class='processed-header' style='text-align:center;'><span style='filter:none;'>📄</span> PROCESSED RESULT</h1>", unsafe_allow_html=True)
     
     # Show Google Drive / Sheets badges if IDs were captured during processing
     _popup_has_folder = bool(st.session_state.get("_google_folder_id"))
@@ -3436,7 +3504,7 @@ def show_result_popup(text: str):
 
         
         if is_media:
-            st.markdown(f"**Playing {idx + 1} of {len(processed_files)}**: `{current_file['name']}`") # type: ignore
+            st.markdown(f"Playing {idx + 1} of {len(processed_files)}: {current_file['name']}") # type: ignore
             st.audio(current_file["bytes"], format=mime_type, autoplay=True, loop=True) # type: ignore
             # Delay autoplay by 1 second so user can see results first
             if st.session_state.pop("_delay_autoplay", False):
@@ -3468,7 +3536,7 @@ def show_result_popup(text: str):
 
 
         elif is_image:
-            st.markdown(f"**Viewing Image {idx + 1} of {len(processed_files)}**: `{current_file['name']}`") # type: ignore
+            st.markdown(f"Viewing Image {idx + 1} of {len(processed_files)}: {current_file['name']}") # type: ignore
             st.image(current_file["bytes"], use_container_width=True) # type: ignore
         else:
             display_name = current_file.get('original_name') # type: ignore
@@ -3491,7 +3559,7 @@ def show_result_popup(text: str):
                 _char_count = len(display_text)
                 _doc_stats = f"{_word_count:,} words · {_char_count:,} chars"
             if _doc_stats and not is_google_sheet:
-                st.markdown(f"**Viewing {idx + 1} of {len(processed_files)}**: `{display_name}`  &nbsp; <span style='background:#444;color:#ccc;padding:2px 8px;border-radius:6px;font-size:0.8em;'>{_doc_stats}</span>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center;'>Viewing {idx + 1} of {len(processed_files)}: {display_name}  &nbsp; <span style='background:#444;color:#ccc;padding:2px 8px;border-radius:6px;font-size:0.8em;'>{_doc_stats}</span></div>", unsafe_allow_html=True)
         # Show navigation buttons if there are multiple files
         if len(processed_files) > 1:
             label_type = "Clip" if is_media else "File"
@@ -3503,14 +3571,14 @@ def show_result_popup(text: str):
                     # Prevent going below 0
                     set_skill_state("file_index", max(0, idx - 1))
                     set_skill_state("auto_open_result", True)
-                    st.session_state["_scroll_to_result"] = True
+                    # Result renders as overlay — no scroll needed
                     st.rerun()
             with col_next:
                 st.markdown("<div class='nav-btn-marker' style='display:none;'></div>", unsafe_allow_html=True)
                 if st.button(f"Next {label_type} ⏭", key="next_clip_btn", use_container_width=True):
                     set_skill_state("file_index", min(idx + 1, len(processed_files) - 1))
                     set_skill_state("auto_open_result", True)
-                    st.session_state["_scroll_to_result"] = True
+                    # Result renders as overlay — no scroll needed
                     st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
             
@@ -3705,11 +3773,23 @@ def show_result_popup(text: str):
         # --- Quick Select List & Upload (Playlist) ---
         # Hide for Google Sheet skill as it's redundant (always just one "Result")
         if not is_google_sheet:
-            with st.expander("ALL DOCUMENTS", expanded=False):
+            # Make expander text 40% larger and position text above arrow
+            st.markdown("<h4 style='text-align:left; margin-top:2em; margin-bottom:1em;'>SHOW MY DOCS</h4>", unsafe_allow_html=True)
+            st.markdown("""<style>
+                .stApp:has(#ag-result-marker) div[data-testid="stExpander"] summary {
+                    flex-direction: column-reverse !important;
+                    align-items: center !important;
+                    gap: 0px !important;
+                }
+                .stApp:has(#ag-result-marker) div[data-testid="stExpander"] summary span {
+                    font-size: 1.4em !important;
+                }
+            </style>""", unsafe_allow_html=True)
+            with st.expander("", expanded=False):
                 if is_media:
                     st.markdown("<h3 class='centered-header'>MY CLIPS</h3>", unsafe_allow_html=True)
                 else:
-                    st.markdown("<h3 class='centered-header'>MY DOCUMENTS</h3>", unsafe_allow_html=True)
+                    pass
                 
                 if get_skill_state("popup_batch_success"):
                     st.markdown("<div class='success-message-popup'>✅ SUCCESSFULLY ADDED!</div>", unsafe_allow_html=True)
@@ -3728,7 +3808,7 @@ def show_result_popup(text: str):
                                 set_skill_state("auto_open_result", True)
                                 st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
-            
+
     # Render the transcription box BELOW the navigation buttons
     import html
     import re as _re
@@ -3741,6 +3821,7 @@ def show_result_popup(text: str):
         display_text = _re.sub(r"\n\n\*\*Statistics:\*\*\s*.+", "", display_text).strip()
     
     # --- COPY button ABOVE preview ---
+    st.markdown("<div style='margin-top:1.5em;'></div>", unsafe_allow_html=True)
     if is_google_sheet:
         import re
         sheet_title = "Google Sheet"
@@ -3786,7 +3867,7 @@ def show_result_popup(text: str):
         js_escaped_text = json.dumps(display_text)
         st.components.v1.html(
             f"""
-            <div style="display: flex; justify-content: center; margin-top: 5px;">
+            <div style="display: flex; justify-content: center; margin-top: 5px; margin-bottom: 15px;">
                 <button id="copy-btn" style="
                     background-color: #ffe700;
                     color: #000000;
@@ -3807,7 +3888,7 @@ def show_result_popup(text: str):
             const btn = document.getElementById('copy-btn');
             btn.onclick = function() {{
                 navigator.clipboard.writeText({js_escaped_text}).then(() => {{
-                    btn.innerText = "\u2713 COPIED!";
+                    btn.innerText = "\\u2713 COPIED!";
                     btn.style.backgroundColor = "#8cd775";
                     btn.style.borderColor = "#8cd775";
                     setTimeout(() => {{
@@ -3826,7 +3907,7 @@ def show_result_popup(text: str):
             }};
             </script>
             """,
-            height=60,
+            height=70,
         )
 
     # --- Preview box BELOW copy button ---
@@ -3862,6 +3943,8 @@ def show_result_popup(text: str):
                 unsafe_allow_html=True
             )
     
+
+
     # --- Dynamic Direct Download Support (Top level, synced to active file) ---
     if processed_files:
         current_item = processed_files[idx]
@@ -3882,17 +3965,16 @@ def show_result_popup(text: str):
                 render_speed_controls(skill_id=selected_skill_id, clip_name=str(res_name or ''))
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-            col1, col2, col3 = st.columns([2, 3, 2])
-            with col2:
-                st.download_button(
-                    label=f"📥 DOWNLOAD {ext_label} NOW",
-                    data=res_bytes,
-                    file_name=res_name,
-                    mime=dl_mime if dl_mime else "application/octet-stream",
-                    use_container_width=True,
-                    type="primary",
-                    key=f"direct_download_btn_sync_{idx}" # Key must be index-specific to prevent state reuse
-                ) # type: ignore
+            # Rendered flat — centering is handled by overlay CSS targeting stDownloadButton
+            st.download_button(
+                label=f"📥 DOWNLOAD {ext_label} NOW",
+                data=res_bytes,
+                file_name=res_name,
+                mime=dl_mime if dl_mime else "application/octet-stream",
+                use_container_width=False,
+                type="primary",
+                key=f"direct_download_btn_sync_{idx}" # Key must be index-specific to prevent state reuse
+            ) # type: ignore
             
             # --- TOP BATCH ACTIONS (For PDF Converter) ---
             if selected_skill["basename"] == "Convtr-PlainTxt2PDF" and len(processed_files) > 1: # type: ignore
@@ -3935,40 +4017,91 @@ def show_result_popup(text: str):
                         st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="tertiary", key="popup_merge_pdf_sourced_top") # type: ignore
 
 
-    # --- Bottom Clear Buttons ---
-    st.markdown("---")
-    col1, col2 = st.columns([5, 1])
-    with col2:
-        if st.button("✖ Clear Result", key="close_popup_final", use_container_width=True):
-            set_skill_state("last_output", None)
-            set_skill_state("auto_open_result", None)
-            set_skill_state("direct_download_file", None)
-            st.rerun()
+    # --- Bottom Clear Button (centered via overlay CSS, generous spacing above) ---
+    st.markdown("<div style='margin-top: 80px;'></div>", unsafe_allow_html=True)
+    if st.button("✖ Clear Result", key="close_popup_final", use_container_width=False):
+        set_skill_state("last_output", None)
+        set_skill_state("auto_open_result", None)
+        set_skill_state("direct_download_file", None)
+        st.rerun()
 
 
-# --- ALWAYS RENDER RESULT INLINE IF IT EXISTS ---
+
+
+# --- RENDER RESULT AS CENTERED POPUP OVERLAY ---
 last_output = get_skill_state("last_output")
+
+# Always inject the overlay CSS into parent document (CSS :has() auto-activates on marker presence)
+# This MUST run before the result renders so the style is ready when the marker appears
+components.html("""
+    <script>
+        (function() {
+            var doc = window.parent.document;
+            // Clean up any leftover curtains from previous approach
+            var curtain = doc.getElementById('ag-scroll-curtain');
+            if (curtain) curtain.remove();
+            
+            // Inject (or refresh) the overlay CSS — always replace to pick up code changes
+            var existingStyle = doc.getElementById('ag-result-overlay-css');
+            if (existingStyle) existingStyle.remove();
+            {
+                var style = doc.createElement('style');
+                style.id = 'ag-result-overlay-css';
+                style.textContent = `
+                    /* When #ag-result-marker exists, make the app viewport a fixed overlay */
+                    .stApp:has(#ag-result-marker) > div[data-testid="stAppViewContainer"] {
+                        position: fixed !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        z-index: 999970 !important;
+                        background: rgba(0,0,0,0.92) !important;
+                        overflow-y: auto !important;
+                        overflow-x: hidden !important;
+                        padding: 3vh 8vw !important;
+                    }
+                    /* Hide the header/toolbar behind the overlay */
+                    .stApp:has(#ag-result-marker) > header {
+                        z-index: 0 !important;
+                    }
+                    /* HIDE all page content that is NOT the result popup */
+                    /* Target top-level children in the main vertical block */
+                    .stApp:has(#ag-result-marker) div[data-testid="stVerticalBlock"] > div {
+                        display: none !important;
+                    }
+                    /* But SHOW the container that holds the result marker (and all its children) */
+                    .stApp:has(#ag-result-marker) div[data-testid="stVerticalBlock"] > div:has(#ag-result-marker) {
+                        display: block !important;
+                    }
+                    .stApp:has(#ag-result-marker) div[data-testid="stVerticalBlock"] > div:has(#ag-result-marker) * {
+                        display: revert !important;
+                    }
+                    /* Center download and clear buttons inside the result overlay.     */
+                    /* display:revert makes wrapper divs block-level (good).             */
+                    /* Target the WRAPPER DIVS (not the buttons themselves) with         */
+                    /* width:fit-content + margin:auto to shrink-wrap and center them.   */
+                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) [data-testid="stDownloadButton"],
+                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) [data-testid="stButton"] {
+                        width: fit-content !important;
+                        margin-left: auto !important;
+                        margin-right: auto !important;
+                    }
+                    /* Hide Streamlit heading anchor link icon in the result popup */
+                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) h1 a,
+                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) [data-testid="StyledLinkIconContainer"] {
+                        display: none !important;
+                    }
+                `;
+                doc.head.appendChild(style);
+            }
+        })();
+    </script>
+""", height=0)
+
 if last_output:
-    # We use a container to visually separate the result
+    # Render the result content in a container with a marker
     with st.container():
+        # Hidden marker — CSS :has() selector auto-activates the overlay when this exists
+        st.markdown("<div id='ag-result-marker' style='display:none;'></div>", unsafe_allow_html=True)
         show_result_popup(last_output)
-        
-        # Post-render scroll to PROCESSED RESULT header
-        # This runs AFTER Streamlit finishes rendering, so scroll won't be reset
-        if st.session_state.get("_scroll_to_result"):
-            st.session_state["_scroll_to_result"] = False
-            components.html("""
-                <script>
-                    (function() {
-                        var doc = window.parent.document;
-                        // Just fade the curtain - don't re-scroll (curtain scroll already correct)
-                        var curtain = doc.getElementById('ag-scroll-curtain');
-                        if (curtain) {
-                            setTimeout(function() {
-                                curtain.style.opacity = '0';
-                                setTimeout(function() { curtain.remove(); }, 500);
-                            }, 50);
-                        }
-                    })();
-                </script>
-            """, height=0)
