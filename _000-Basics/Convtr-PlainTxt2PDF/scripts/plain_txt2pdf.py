@@ -308,7 +308,7 @@ def convert(input_path: str, output_path: str, font_size: int = 11, margin: int 
                 pdf.set_font("NotoEmoji", size=f_size)
             else:
                 pdf.set_font("NotoSans", size=f_size)
-            pdf.write(h=6, txt=content)
+            pdf.write(h=6, text=content)
         pdf.ln(6)
 
     # ---- BUNDLE CUSTOM TRUETYPE FONTS ----

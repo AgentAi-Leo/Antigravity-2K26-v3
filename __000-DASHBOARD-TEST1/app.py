@@ -2338,11 +2338,9 @@ if is_pdf_skill:
                         if _date_dir.is_dir():
                             _total_processed += len([f for f in os.scandir(_date_dir.path) if f.is_file()])
                 
-                st.caption(f"📁 `{_resolved_watch_path}` — **{len(_pending_files)}** pending · **{_total_processed}** processed")
-                
                 # --- Auto-process pending files ---
+                import datetime as _wf_dt
                 if _pending_files:
-                    import datetime as _wf_dt
                     _last_run_key = "_watch_folder_last_run"
                     _now = _wf_dt.datetime.now().timestamp()
                     _last_run = st.session_state.get(_last_run_key, 0)
@@ -2360,77 +2358,70 @@ if is_pdf_skill:
                             _proc_cmd = [_python_cmd, _processor_script, "--folder", _resolved_watch_path]
                             try:
                                 _proc_result = subprocess.run(_proc_cmd, capture_output=True, text=True, timeout=300)
-                                _processed_items = []
-                                if _proc_result.stdout.strip():
-                                    for _line in _proc_result.stdout.strip().splitlines():
-                                        if _line.startswith("Processed:"):
-                                            _processed_items.append(_line.replace("Processed: ", ""))
-                                            st.toast(f"✅ {_line}", icon="📄")
-                                        elif _line.startswith("Purged:"):
-                                            pass  # Silent purge
-                                        elif _line.startswith("Summary:"):
-                                            st.toast(f"📊 {_line}", icon="📂")
-                                # Store results in session state for persistent display
-                                if _processed_items:
-                                    st.session_state["_wf_last_results"] = _processed_items
-                                    st.session_state["_wf_last_results_time"] = _wf_dt.datetime.now().strftime("%-I:%M:%S %p")
+                                _full_stdout = _proc_result.stdout.strip()
+                                if _full_stdout:
+                                    st.session_state["_wf_last_output"] = _full_stdout
+                                    st.session_state["_wf_last_output_time"] = _wf_dt.datetime.now().strftime("%-I:%M:%S %p")
                                 if _proc_result.stderr.strip():
-                                    for _err_line in _proc_result.stderr.strip().splitlines():
-                                        st.toast(f"⚠️ {_err_line}", icon="⚠️")
+                                    st.session_state["_wf_last_errors"] = _proc_result.stderr.strip()
+                                else:
+                                    st.session_state.pop("_wf_last_errors", None)
                             except subprocess.TimeoutExpired:
-                                st.toast("⚠️ Watch folder processing timed out.", icon="⏱️")
+                                st.session_state["_wf_last_errors"] = "Watch folder processing timed out."
                             except Exception as _proc_e:
-                                st.toast(f"❌ Watch folder error: {_proc_e}", icon="❌")
+                                st.session_state["_wf_last_errors"] = f"Watch folder error: {_proc_e}"
                 
-                # Show all processed files from zProcessed directory
-                if os.path.isdir(_processed_dir):
-                    _all_processed_files = []
-                    for _date_dir in sorted(os.scandir(_processed_dir), key=lambda d: d.name, reverse=True):
-                        if _date_dir.is_dir():
-                            for _pf in sorted(os.scandir(_date_dir.path), key=lambda f: f.name):
-                                if _pf.is_file():
-                                    _all_processed_files.append((_date_dir.name, _pf.name))
-                    if _all_processed_files:
-                        st.markdown(f"**✅ Processed** ({len(_all_processed_files)} files):")
-                        for _date_label, _fname in _all_processed_files:
-                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;📄 `{_fname}` &nbsp;·&nbsp; {_date_label}")
+                with st.expander("DETAILS", expanded=False):
+                    st.caption(f"📁 `{_resolved_watch_path}` — **{len(_pending_files)}** pending · **{_total_processed}** processed")
+                    
+                    # Show last processing output (persistent across reruns)
+                    _last_output = st.session_state.get("_wf_last_output", "")
+                    if _last_output:
+                        _out_time = st.session_state.get("_wf_last_output_time", "")
+                        st.success(f"**Converted at {_out_time}:**\n\n```\n{_last_output}\n```", icon="✅")
+                    _last_errors = st.session_state.get("_wf_last_errors", "")
+                    if _last_errors:
+                        st.error(f"```\n{_last_errors}\n```", icon="❌")
+                    
+                    # Show all processed files from zProcessed directory
+                    if os.path.isdir(_processed_dir):
+                        _all_processed_files = []
+                        for _date_dir in sorted(os.scandir(_processed_dir), key=lambda d: d.name, reverse=True):
+                            if _date_dir.is_dir():
+                                for _pf in sorted(os.scandir(_date_dir.path), key=lambda f: f.name):
+                                    if _pf.is_file():
+                                        _all_processed_files.append((_date_dir.name, _pf.name))
+                        if _all_processed_files:
+                            st.markdown(f"**✅ Processed** ({len(_all_processed_files)} files):")
+                            for _date_label, _fname in _all_processed_files:
+                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;📄 `{_fname}` &nbsp;·&nbsp; {_date_label}")
                 
-                # Hidden rerun trigger — hide via JS after rendering
+                # Hidden rerun trigger + JS timer (combined: hide on load + click on interval)
                 _wf_rerun_clicked = st.button("⟳", key="_wf_rerun_trigger", type="secondary")
-                st.components.v1.html("""
-                    <script>
-                    (function() {
-                        const doc = window.parent.document;
-                        const btns = doc.querySelectorAll('button[kind="secondary"]');
-                        for (const b of btns) {
-                            if (b.textContent.trim() === '⟳') {
-                                b.parentElement.parentElement.style.cssText = 'position:absolute;left:-9999px;height:0;overflow:hidden;';
-                            }
-                        }
-                    })();
-                    </script>
-                """, height=0)
-                
-                # JS-based auto-refresh timer — clicks hidden button instead of reloading page
                 st.components.v1.html(
                     f"""
                     <script>
                     (function() {{
-                        const parentWindow = window.parent;
-                        const doc = parentWindow.document;
-                        // Clear any existing watch folder timer
-                        if (parentWindow._watchFolderTimer) {{
-                            clearInterval(parentWindow._watchFolderTimer);
-                        }}
-                        parentWindow._watchFolderTimer = setInterval(function() {{
-                            // Find all buttons and click the hidden rerun trigger
-                            const buttons = doc.querySelectorAll('button[kind="secondary"]');
-                            for (const btn of buttons) {{
-                                if (btn.textContent.trim() === '⟳') {{
-                                    btn.click();
-                                    return;
+                        const doc = window.parent.document;
+                        // Find and hide the rerun button immediately
+                        function hideRerunBtn() {{
+                            const btns = doc.querySelectorAll('button[kind="secondary"]');
+                            for (const b of btns) {{
+                                if (b.textContent.trim() === '⟳') {{
+                                    b.closest('[data-testid="stButton"]').style.cssText = 'position:absolute;left:-9999px;height:0;overflow:hidden;pointer-events:none;';
+                                    return b;
                                 }}
                             }}
+                            return null;
+                        }}
+                        hideRerunBtn();
+                        // Clear any existing timer
+                        if (window.parent._watchFolderTimer) {{
+                            clearInterval(window.parent._watchFolderTimer);
+                        }}
+                        window.parent._watchFolderTimer = setInterval(function() {{
+                            const btn = hideRerunBtn();
+                            if (btn) btn.click();
                         }}, {_watch_interval_ms});
                     }})();
                     </script>
