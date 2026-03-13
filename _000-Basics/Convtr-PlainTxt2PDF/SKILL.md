@@ -95,5 +95,27 @@ brew install antiword
 
 ---
 
+## Watch Folder Mode
+
+When the `Convtr-PlainTxt2PDF` skill is selected in the Antigravity Dashboard, a **📂 Watch Folder Auto-Process** toggle is available.
+
+### How It Works
+1. **Enable the toggle** in the dashboard
+2. **Enter any folder path** on your machine (e.g., `~/Desktop/MyWatchFolder`)
+3. **Select a polling interval**: `Every 15 minutes`, `Every 1 minute`, or `Every :05`
+4. Any `.txt`, `.rtf`, `.doc`, or `.docx` files placed in the folder are **automatically converted to PDF**
+5. Output PDFs go to `<folder>/zProcessed/YYYY-MM-DD/`
+6. Original files are **purged** after successful conversion
+
+### CLI Usage (Standalone)
+```bash
+python3 scripts/watch_folder_processor.py --folder "/path/to/folder"
+python3 scripts/watch_folder_processor.py --folder "/path/to/folder" --dry-run
+python3 scripts/watch_folder_processor.py --help
+```
+
+---
+
 ## Resources
 - `scripts/plain_txt2pdf.py` — core conversion script
+- `scripts/watch_folder_processor.py` — watch folder batch processor

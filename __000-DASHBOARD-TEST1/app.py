@@ -2131,6 +2131,328 @@ is_image_skill = selected_skill["basename"] == "AI-LLM-ImageGenerate"
 is_embed_skill = selected_skill["basename"] == "AI-LLM-EmbedText"
 is_rag_skill = selected_skill["basename"] == "AI-LLM-RAGQuery"
 is_translate_skill = selected_skill["basename"] == "AI-LLM-TranslateText"
+is_pdf_skill = selected_skill["basename"] == "Convtr-PlainTxt2PDF"
+
+# --- Watch Folder Auto-Process (Convtr-PlainTxt2PDF only) ---
+if is_pdf_skill:
+    st.subheader("Create Watch Folder", anchor=False)
+    
+    # --- Persistent config file for watch folder settings ---
+    _wf_config_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "_000-Basics", "Convtr-PlainTxt2PDF", "scripts")
+    _wf_config_path = os.path.join(_wf_config_dir, ".watch_folder_config.json")
+    
+    def _wf_load_config() -> dict:
+        """Load saved watch folder config from disk."""
+        try:
+            if os.path.exists(_wf_config_path):
+                import json as _json
+                with open(_wf_config_path, "r") as f:
+                    return _json.load(f)
+        except Exception:
+            pass
+        return {}
+    
+    def _wf_save_config(path: str, interval_idx: int):
+        """Save watch folder config to disk."""
+        try:
+            import json as _json
+            os.makedirs(os.path.dirname(_wf_config_path), exist_ok=True)
+            with open(_wf_config_path, "w") as f:
+                _json.dump({"path": path, "interval_idx": interval_idx}, f)
+        except Exception:
+            pass
+    
+    def _wf_clear_config():
+        """Clear saved watch folder config and reset session state."""
+        try:
+            if os.path.exists(_wf_config_path):
+                os.remove(_wf_config_path)
+        except Exception:
+            pass
+        st.session_state.pop("_wf_picked_path", None)
+        st.session_state.pop("_wf_typed_path", None)
+        st.session_state.pop("_watch_interval_idx", None)
+        st.session_state.pop("_watch_folder_on", None)
+        st.session_state.pop("_watch_folder_last_run", None)
+        st.session_state.pop("_wf_picker_proc", None)
+        st.session_state.pop("_wf_config_loaded", None)
+    
+    # Load config on first run (hydrate session state from disk)
+    if "_wf_config_loaded" not in st.session_state:
+        _saved_cfg = _wf_load_config()
+        if _saved_cfg.get("path"):
+            st.session_state["_wf_picked_path"] = _saved_cfg["path"]
+            st.session_state["_watch_interval_idx"] = _saved_cfg.get("interval_idx", 2)
+            st.session_state["_watch_folder_on"] = True
+        st.session_state["_wf_config_loaded"] = True
+    
+    _wf_col_toggle, _wf_col_clear = st.columns([1, 2])
+    with _wf_col_toggle:
+        watch_folder_on = st.toggle("📂 Watch Folder Auto-Process", value=st.session_state.get("_watch_folder_on", False), key="_watch_folder_on")
+    with _wf_col_clear:
+        # Show clear button only if there's a saved config
+        if os.path.exists(_wf_config_path) or st.session_state.get("_wf_picked_path") or st.session_state.get("_wf_typed_path"):
+            st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+            st.button("🗑️ Clear Watch Folder", on_click=_wf_clear_config, key="_wf_clear_btn")
+    
+    if watch_folder_on:
+        # --- Folder picker via macOS native dialog (synchronous in callback) ---
+        def _pick_folder_dialog():
+            """Launch macOS native folder picker. Blocks callback until user picks or cancels."""
+            try:
+                result = subprocess.run(
+                    ["osascript", "-e",
+                     'return POSIX path of (choose folder with prompt "Select or Create Watch Folder")'],
+                    capture_output=True, text=True, timeout=300
+                )
+                if result.returncode == 0:
+                    picked = result.stdout.strip()
+                    if picked:
+                        st.session_state["_wf_picked_path"] = picked
+                        # Save to disk immediately so it persists across restarts
+                        _wf_save_config(picked, st.session_state.get("_watch_interval_idx", 2))
+            except (subprocess.TimeoutExpired, Exception):
+                pass
+        
+        # Merge picked path into the display value
+        _wf_display_path = st.session_state.get("_wf_picked_path", "") or st.session_state.get("_wf_typed_path", "")
+        
+        def _open_folder_in_finder():
+            """Open the watch folder in Finder."""
+            _path = st.session_state.get("_wf_picked_path", "") or st.session_state.get("_wf_typed_path", "")
+            if _path:
+                _expanded = os.path.expanduser(_path)
+                if os.path.isdir(_expanded):
+                    subprocess.Popen(["open", _expanded])
+        
+        _wf_col_path, _wf_col_browse, _wf_col_interval = st.columns([3, 0.8, 1.2])
+        with _wf_col_path:
+            st.markdown('<span style="color: #FF8C00; font-weight: 600;">Watch Folder Path</span>', unsafe_allow_html=True)
+            watch_folder_path = st.text_input(
+                "Watch Folder Path",
+                value=_wf_display_path,
+                placeholder="Click Create or paste a path...",
+                key="_wf_typed_path",
+                label_visibility="collapsed"
+            )
+            # If user typed a path manually, clear the picked path so typed takes precedence
+            if watch_folder_path and watch_folder_path != st.session_state.get("_wf_picked_path", ""):
+                st.session_state.pop("_wf_picked_path", None)
+        with _wf_col_browse:
+            st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
+            st.button("📁 Create", on_click=_pick_folder_dialog, use_container_width=True, key="_wf_browse_btn")
+        with _wf_col_interval:
+            # Show spinner only when there are pending files being processed
+            _is_actively_polling = bool(st.session_state.get("_wf_pending_count", 0))
+            _spinner_html = ' <span class="wf-spinner"></span>' if _is_actively_polling else ""
+            st.markdown(f'<span style="font-size: 0.875rem; font-weight: 400;">Polling Interval{_spinner_html}</span>', unsafe_allow_html=True)
+            watch_interval_label = st.selectbox(
+                "Polling Interval",
+                options=["15 minutes", "1 minute", "5 seconds"],
+                index=st.session_state.get("_watch_interval_idx", 2),
+                key="_watch_interval_select",
+                label_visibility="collapsed"
+            )
+            # Store selected index for persistence
+            _interval_options = ["15 minutes", "1 minute", "5 seconds"]
+            st.session_state["_watch_interval_idx"] = _interval_options.index(watch_interval_label) if watch_interval_label in _interval_options else 2
+        
+        # Open button on its own row — dynamically sized to fit any folder name
+        _wf_effective_path = watch_folder_path or _wf_display_path
+        _has_valid_path = bool(_wf_effective_path) and os.path.isdir(os.path.expanduser(_wf_effective_path))
+        _wf_folder_name = os.path.basename(os.path.expanduser(_wf_effective_path).rstrip("/")) if _wf_effective_path else "Open"
+        st.button(f"📂 {_wf_folder_name}", on_click=_open_folder_in_finder, key="_wf_open_btn", disabled=not _has_valid_path)
+        
+        # Style buttons + spinner animation
+        st.markdown("""
+            <style>
+            /* Spinning animation for active polling */
+            @keyframes wfSpin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            .wf-spinner {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border: 2px solid rgba(0, 200, 83, 0.3);
+                border-top: 2px solid #00c853;
+                border-radius: 50%;
+                margin-left: 6px;
+                vertical-align: middle;
+                animation: wfSpin 0.8s linear infinite;
+            }
+            /* Watch folder button font size */
+            div[data-testid="stVerticalBlock"] button[kind="secondary"] {
+                font-size: 0.85em !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        # Map label to milliseconds for JS timer
+        _interval_ms_map = {"15 minutes": 900000, "1 minute": 60000, "5 seconds": 5000}
+        _watch_interval_ms = _interval_ms_map.get(watch_interval_label, 60000)
+        
+        # Show estimated next poll time (skip for 5s interval)
+        if _is_actively_polling and watch_interval_label != "5 seconds":
+            import datetime as _wf_dt
+            _last_run_ts = st.session_state.get("_watch_folder_last_run", 0)
+            _interval_secs = _watch_interval_ms / 1000
+            if _last_run_ts:
+                _next_poll_ts = _last_run_ts + _interval_secs
+                _next_poll_time = _wf_dt.datetime.fromtimestamp(_next_poll_ts).strftime("%-I:%M %p")
+                st.caption(f"⏱️ Next poll ~{_next_poll_time}")
+            else:
+                st.caption("⏱️ Next poll on first cycle")
+        
+        # Expand and validate the folder path
+        _effective_path = watch_folder_path or _wf_display_path
+        _resolved_watch_path = os.path.expanduser(_effective_path) if _effective_path else ""
+        
+        if _resolved_watch_path:
+            if not os.path.isdir(_resolved_watch_path):
+                try:
+                    os.makedirs(_resolved_watch_path, exist_ok=True)
+                    st.success(f"✅ Created watch folder: `{_resolved_watch_path}`")
+                except OSError as e:
+                    st.error(f"❌ Could not create folder: {e}")
+                    _resolved_watch_path = ""
+            
+            if _resolved_watch_path:
+                # Persist config to disk
+                _wf_save_config(_resolved_watch_path, st.session_state.get("_watch_interval_idx", 2))
+                
+                # Count pending files
+                _supported_exts = {".txt", ".rtf", ".doc", ".docx"}
+                try:
+                    _pending_files = [f for f in os.scandir(_resolved_watch_path) 
+                                      if f.is_file() and os.path.splitext(f.name)[1].lower() in _supported_exts]
+                except OSError:
+                    _pending_files = []
+                st.session_state["_wf_pending_count"] = len(_pending_files)
+                
+                _processed_dir = os.path.join(_resolved_watch_path, "zProcessed")
+                _total_processed = 0
+                if os.path.isdir(_processed_dir):
+                    for _date_dir in os.scandir(_processed_dir):
+                        if _date_dir.is_dir():
+                            _total_processed += len([f for f in os.scandir(_date_dir.path) if f.is_file()])
+                
+                st.caption(f"📁 `{_resolved_watch_path}` — **{len(_pending_files)}** pending · **{_total_processed}** processed")
+                
+                # --- Auto-process pending files ---
+                if _pending_files:
+                    import datetime as _wf_dt
+                    _last_run_key = "_watch_folder_last_run"
+                    _now = _wf_dt.datetime.now().timestamp()
+                    _last_run = st.session_state.get(_last_run_key, 0)
+                    _interval_secs = _watch_interval_ms / 1000
+                    
+                    if (_now - _last_run) >= _interval_secs:
+                        st.session_state[_last_run_key] = _now
+                        
+                        # Run the processor
+                        _root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                        _processor_script = os.path.join(_root_dir, "_000-Basics", "Convtr-PlainTxt2PDF", "scripts", "watch_folder_processor.py")
+                        
+                        if os.path.exists(_processor_script):
+                            _python_cmd = get_python_cmd()
+                            _proc_cmd = [_python_cmd, _processor_script, "--folder", _resolved_watch_path]
+                            try:
+                                _proc_result = subprocess.run(_proc_cmd, capture_output=True, text=True, timeout=300)
+                                _processed_items = []
+                                if _proc_result.stdout.strip():
+                                    for _line in _proc_result.stdout.strip().splitlines():
+                                        if _line.startswith("Processed:"):
+                                            _processed_items.append(_line.replace("Processed: ", ""))
+                                            st.toast(f"✅ {_line}", icon="📄")
+                                        elif _line.startswith("Purged:"):
+                                            pass  # Silent purge
+                                        elif _line.startswith("Summary:"):
+                                            st.toast(f"📊 {_line}", icon="📂")
+                                # Store results in session state for persistent display
+                                if _processed_items:
+                                    st.session_state["_wf_last_results"] = _processed_items
+                                    st.session_state["_wf_last_results_time"] = _wf_dt.datetime.now().strftime("%-I:%M:%S %p")
+                                if _proc_result.stderr.strip():
+                                    for _err_line in _proc_result.stderr.strip().splitlines():
+                                        st.toast(f"⚠️ {_err_line}", icon="⚠️")
+                            except subprocess.TimeoutExpired:
+                                st.toast("⚠️ Watch folder processing timed out.", icon="⏱️")
+                            except Exception as _proc_e:
+                                st.toast(f"❌ Watch folder error: {_proc_e}", icon="❌")
+                
+                # Show all processed files from zProcessed directory
+                if os.path.isdir(_processed_dir):
+                    _all_processed_files = []
+                    for _date_dir in sorted(os.scandir(_processed_dir), key=lambda d: d.name, reverse=True):
+                        if _date_dir.is_dir():
+                            for _pf in sorted(os.scandir(_date_dir.path), key=lambda f: f.name):
+                                if _pf.is_file():
+                                    _all_processed_files.append((_date_dir.name, _pf.name))
+                    if _all_processed_files:
+                        st.markdown(f"**✅ Processed** ({len(_all_processed_files)} files):")
+                        for _date_label, _fname in _all_processed_files:
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;📄 `{_fname}` &nbsp;·&nbsp; {_date_label}")
+                
+                # Hidden rerun trigger — hide via JS after rendering
+                _wf_rerun_clicked = st.button("⟳", key="_wf_rerun_trigger", type="secondary")
+                st.components.v1.html("""
+                    <script>
+                    (function() {
+                        const doc = window.parent.document;
+                        const btns = doc.querySelectorAll('button[kind="secondary"]');
+                        for (const b of btns) {
+                            if (b.textContent.trim() === '⟳') {
+                                b.parentElement.parentElement.style.cssText = 'position:absolute;left:-9999px;height:0;overflow:hidden;';
+                            }
+                        }
+                    })();
+                    </script>
+                """, height=0)
+                
+                # JS-based auto-refresh timer — clicks hidden button instead of reloading page
+                st.components.v1.html(
+                    f"""
+                    <script>
+                    (function() {{
+                        const parentWindow = window.parent;
+                        const doc = parentWindow.document;
+                        // Clear any existing watch folder timer
+                        if (parentWindow._watchFolderTimer) {{
+                            clearInterval(parentWindow._watchFolderTimer);
+                        }}
+                        parentWindow._watchFolderTimer = setInterval(function() {{
+                            // Find all buttons and click the hidden rerun trigger
+                            const buttons = doc.querySelectorAll('button[kind="secondary"]');
+                            for (const btn of buttons) {{
+                                if (btn.textContent.trim() === '⟳') {{
+                                    btn.click();
+                                    return;
+                                }}
+                            }}
+                        }}, {_watch_interval_ms});
+                    }})();
+                    </script>
+                    """,
+                    height=0
+                )
+        else:
+            st.caption("Enter a folder path above to enable automatic file processing.")
+    else:
+        # Clear timer when toggle is off
+        st.components.v1.html(
+            """
+            <script>
+            if (window._watchFolderTimer) {
+                clearInterval(window._watchFolderTimer);
+                window._watchFolderTimer = null;
+            }
+            </script>
+            """,
+            height=0
+        )
+    st.markdown("---")
 
 col_head, col_toggle = st.columns([1, 1])
 if is_audio_skill:
@@ -2342,6 +2664,8 @@ else:
         label_visibility="collapsed",
         type=allowed_types
     )
+
+
 
 # --- PDF Restriction Safeguard ---
 if uploaded_files:
