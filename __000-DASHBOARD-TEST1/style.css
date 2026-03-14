@@ -46,14 +46,14 @@
     /* 100% larger than default */
 }
 
-/* 6. Login Page & Accent Elements - RESTRICTED TO LOGIN PAGE via .login-page class */
+/* 6. Login Page & Accent Elements - RESTRICTED TO LOGIN PAGE */
 /* Style secondary and form-submit buttons (Unlock) yellow and match size to Browse button */
-.login-page button[data-testid*="secondary"],
-.login-page [data-testid="stFormSubmitButton"] button {
-    background-color: #ffe700 !important;
+[data-testid="stAppViewContainer"]:has(#login-css-hook) button[data-testid*="secondary"],
+[data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button {
+    background-color: #FFE300 !important;
     color: #000000 !important;
     font-weight: bold !important;
-    border: 1px solid #ffe700 !important;
+    border: 1px solid #FFE300 !important;
     /* Match Browse button size */
     height: 38px !important;
     padding: 0.25rem 0.75rem !important;
@@ -61,21 +61,21 @@
     width: auto !important;
 }
 
-.login-page button[data-testid*="secondary"]:hover,
-.login-page [data-testid="stFormSubmitButton"] button:hover {
-    background-color: #ffd600 !important;
-    border-color: #ffd600 !important;
+[data-testid="stAppViewContainer"]:has(#login-css-hook) button[data-testid*="secondary"]:hover,
+[data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button:hover {
+    background-color: #FFD600 !important;
+    border-color: #FFD600 !important;
 }
 
 
 /* Ensure password visibility toggle stays yellow/black */
-.login-page div[data-testid="stTextInput"] button {
-    background-color: #ffe700 !important;
+[data-testid="stAppViewContainer"]:has(#login-css-hook) div[data-testid="stTextInput"] button {
+    background-color: #FFE300 !important;
     color: #000000 !important;
-    border: 1px solid #ffe700 !important;
+    border: 1px solid #FFE300 !important;
 }
 
-.login-page div[data-testid="stTextInput"] button svg {
+[data-testid="stAppViewContainer"]:has(#login-css-hook) div[data-testid="stTextInput"] button svg {
     fill: #000000 !important;
     color: #000000 !important;
 }

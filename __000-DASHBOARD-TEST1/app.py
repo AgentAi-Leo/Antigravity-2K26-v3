@@ -1598,6 +1598,13 @@ def check_password():
         display: flex;
         justify-content: center;
     }
+    }
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        margin-top: 15px;
+    }
     [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button {
         min-width: 160px;
     }
@@ -1636,7 +1643,7 @@ def check_password():
     """, unsafe_allow_html=True)
 
     st.markdown("<div class='login-page'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #a8ffdb; margin-bottom: 20px;'>🔒 Antigravity Dashboard</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #ffffff; margin-bottom: 20px;'>🔒 Antigravity Dashboard</h2>", unsafe_allow_html=True)
     
     with st.form("login_form", clear_on_submit=False, border=False):
         _pw_spacer_l, _pw_col, _pw_spacer_r = st.columns([1, 2, 1])
@@ -1665,10 +1672,10 @@ def check_password():
             """,
             height=0
         )
-        
-        unlock_clicked = st.form_submit_button("Unlock", use_container_width=False)
-    
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        _btn_l, _btn_c, _btn_r = st.columns([3, 2, 3])
+        with _btn_c:
+            unlock_clicked = st.form_submit_button("Unlock", use_container_width=True)
 
     if unlock_clicked:
         _spin_l, _spin_col, _spin_r = st.columns([1, 2, 1])
