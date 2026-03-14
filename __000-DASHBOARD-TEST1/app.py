@@ -1603,7 +1603,7 @@ def check_password():
         display: flex;
         justify-content: center;
         width: 100%;
-        margin-top: 15px;
+        margin-top: -60px !important;
     }
     [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button {
         min-width: 160px;
@@ -1672,7 +1672,7 @@ def check_password():
             """,
             height=0
         )
-        st.markdown("<br>", unsafe_allow_html=True)
+        # Removed <br> to move the button upwards
         _btn_l, _btn_c, _btn_r = st.columns([3, 2, 3])
         with _btn_c:
             unlock_clicked = st.form_submit_button("Unlock", use_container_width=True)
