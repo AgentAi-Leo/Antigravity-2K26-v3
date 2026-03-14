@@ -1655,9 +1655,10 @@ def check_password():
             height=0
         )
         
-        _btn_spacer_l, _btn_col, _btn_spacer_r = st.columns([1, 2, 1])
-        with _btn_col:
-            unlock_clicked = st.form_submit_button("Unlock", use_container_width=True)
+        # Container for reliable yellow styling
+        st.markdown("<div class='unlock-btn-container'>", unsafe_allow_html=True)
+        unlock_clicked = st.form_submit_button("Unlock", use_container_width=False)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     if unlock_clicked:
         _spin_l, _spin_col, _spin_r = st.columns([1, 2, 1])
@@ -1693,7 +1694,6 @@ def check_password():
                         st.error("Incorrect password or failed to fetch secret. Ensure you are logged in to gcloud (`gcloud auth login`).")
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
-    st.markdown("</div>", unsafe_allow_html=True)
     return False
 
 if not check_password():
