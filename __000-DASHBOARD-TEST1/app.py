@@ -1614,6 +1614,13 @@ def check_password():
         width: 100% !important;
         margin-top: 2.5rem !important;
     }
+    /* Reduce space by 1 line between consecutive spinners/status widgets */
+    .login-page [data-testid="stElementContainer"]:has([data-testid="stSpinner"]) + [data-testid="stElementContainer"]:has([data-testid="stSpinner"]),
+    .login-page .element-container:has([data-testid="stSpinner"]) + .element-container:has([data-testid="stSpinner"]),
+    .login-page [data-testid="stElementContainer"]:has(.stSpinner) + [data-testid="stElementContainer"]:has(.stSpinner),
+    .login-page .element-container:has(.stSpinner) + .element-container:has(.stSpinner) {
+        margin-top: 0.5rem !important;
+    }
     .login-page [data-testid="stSpinner"],
     .login-page [data-testid="stStatusWidget"],
     .login-page .stSpinner {
@@ -1691,7 +1698,6 @@ def check_password():
                             container.style.setProperty('display', 'flex', 'important');
                             container.style.setProperty('justify-content', 'center', 'important');
                             container.style.setProperty('width', '100%', 'important');
-                            container.style.setProperty('margin-top', '2.5rem', 'important');
                             
                             // Walk UP from leaf to container to force flex centering on all wrappers
                             let curr = el;
