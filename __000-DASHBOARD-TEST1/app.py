@@ -4101,7 +4101,7 @@ def show_result_popup(text: str):
 
 
     # --- ADD MORE Files Button (inside expander) ---
-    st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     # Determine allowed types based on current skill
     _addmore_types = None
     _sel_skill_raw = st.session_state.get("selected_skill_id", "")
@@ -4226,9 +4226,11 @@ def show_result_popup(text: str):
                 color: #aaaaaa !important;
                 border: 1px solid #aaaaaa !important;
                 border-radius: 4px !important;
-                padding: 0px 16px !important;
+                padding: 0px !important;
                 height: 38px !important;
+                width: 100px !important;
                 min-width: 100px !important;
+                max-width: 100px !important;
                 font-size: 0.9rem !important;
                 font-family: 'Source Sans Pro', sans-serif !important;
                 transition: all 0.2s !important;
@@ -4236,6 +4238,7 @@ def show_result_popup(text: str):
                 font-weight: normal !important;
                 outline: none !important;
                 text-align: center !important;
+                white-space: nowrap !important;
             }
             .custom-clear-btn:hover {
                 color: #ffffff !important;
@@ -4247,6 +4250,7 @@ def show_result_popup(text: str):
                 color: inherit !important;
                 margin: 0 !important;
                 text-align: center !important;
+                white-space: nowrap !important;
             }
             .custom-clear-btn div {
                 justify-content: center !important;
@@ -4255,12 +4259,12 @@ def show_result_popup(text: str):
         </style>
     """, unsafe_allow_html=True)
     
-    # Use a specific height div to explicitly enforce the "2 spaces above"
-    st.markdown("<div style='height: 2em;'></div>", unsafe_allow_html=True)
+    # Use a specific height div to explicitly enforce the spacing above. Increased to move down 1 line.
+    st.markdown("<div style='height: 3.5em;'></div>", unsafe_allow_html=True)
     
     # We use use_container_width=False so it never word-wraps, and perfectly right-justify
     # it safely using text-align in the javascript block below, avoiding flex overlaps.
-    if st.button("✖ Clear Result", key="close_popup_final_ux", use_container_width=False):
+    if st.button("CLEAR ALL", key="close_popup_final_ux", use_container_width=False):
         set_skill_state("last_output", None)
         set_skill_state("auto_open_result", None)
         set_skill_state("direct_download_file", None)
@@ -4288,10 +4292,18 @@ def show_result_popup(text: str):
                     foundAdd = true;
                 }
             }
-            if (p.textContent.includes('Clear Result')) {
+            if (p.textContent.includes('CLEAR ALL')) {
                 const btn = p.closest('button');
                 if (btn) {
                     btn.classList.add('custom-clear-btn');
+                    // Force Streamlit's native button wrapper to stop auto-expanding
+                    const stButton = btn.closest('.stButton');
+                    if (stButton) {
+                        stButton.style.setProperty("width", "100px", "important");
+                        stButton.style.setProperty("min-width", "100px", "important");
+                        stButton.style.setProperty("max-width", "100px", "important");
+                        stButton.style.setProperty("flex", "0 0 100px", "important");
+                    }
                     // According to the styling workflow manual, use robust Flexbox property assignments
                     const stElement = btn.closest('div[data-testid="stElementContainer"]');
                     if (stElement) {
