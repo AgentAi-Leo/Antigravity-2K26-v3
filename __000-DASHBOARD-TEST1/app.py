@@ -4226,14 +4226,14 @@ def show_result_popup(text: str):
                 color: #aaaaaa !important;
                 border: 1px solid #aaaaaa !important;
                 border-radius: 4px !important;
-                padding: 8px 16px !important;
+                padding: 0px 16px !important;
+                height: 38px !important;
+                min-width: 100px !important;
                 font-size: 0.9rem !important;
                 font-family: 'Source Sans Pro', sans-serif !important;
                 transition: all 0.2s !important;
                 box-shadow: none !important;
                 font-weight: normal !important;
-                min-height: 0 !important;
-                height: auto !important;
                 outline: none !important;
                 text-align: center !important;
             }
@@ -4247,12 +4247,10 @@ def show_result_popup(text: str):
                 color: inherit !important;
                 margin: 0 !important;
                 text-align: center !important;
-                width: 100% !important;
             }
             .custom-clear-btn div {
                 justify-content: center !important;
                 display: flex !important;
-                width: 100% !important;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -4294,10 +4292,19 @@ def show_result_popup(text: str):
                 const btn = p.closest('button');
                 if (btn) {
                     btn.classList.add('custom-clear-btn');
-                    // Safely right-justify by making the wrapper a block with text-align right
-                    // This avoids Flexbox height bugs that caused vertical overlapping.
-                    const wrapper = btn.closest('div[data-testid="stElementContainer"]');
-                    if (wrapper) wrapper.style.cssText = 'display: block !important; text-align: right !important; width: 100% !important;';
+                    // According to the styling workflow manual, use robust Flexbox property assignments
+                    const stElement = btn.closest('div[data-testid="stElementContainer"]');
+                    if (stElement) {
+                        stElement.style.setProperty("display", "flex", "important");
+                        stElement.style.setProperty("justify-content", "flex-end", "important");
+                        stElement.style.setProperty("width", "100%", "important");
+                    }
+                    const elContainer = btn.closest('div.element-container');
+                    if (elContainer) {
+                        elContainer.style.setProperty("display", "flex", "important");
+                        elContainer.style.setProperty("justify-content", "flex-end", "important");
+                        elContainer.style.setProperty("width", "100%", "important");
+                    }
                     foundClear = true;
                 }
             }
