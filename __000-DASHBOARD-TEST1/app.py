@@ -1560,24 +1560,16 @@ def check_password():
     """Returns True if the user has entered the correct GCP secret password."""
     load_css() # Apply styles to login screen
     if st.session_state.get("authenticated", False):
-        # Remove login-page centering class if it lingers from previous render
-        st.components.v1.html("""
-        <script>
-        (function() {
-            var appEl = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
-            if (appEl) appEl.classList.remove('login-page');
-        })();
-        </script>
-        """, height=0)
         return True
 
-
-
-    # --- Center the entire login screen via JS class injection + CSS ---
+    # --- Center the entire login screen instantly via CSS :has() hook ---
+    # We inject a hidden div hook that the CSS relies on. This applies the styles instantly
+    # on the very first frame without waiting for Javascript, preventing any layout flash.
+    st.markdown('<div id="login-css-hook" style="display:none"></div>', unsafe_allow_html=True)
     st.markdown("""
     <style>
-    /* When login-page class is present, center everything */
-    .login-page [data-testid="stMainBlockContainer"] {
+    /* When login-css-hook is present, center everything */
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stMainBlockContainer"] {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -1586,44 +1578,44 @@ def check_password():
         text-align: center;
     }
     /* Center the title */
-    .login-page [data-testid="stMainBlockContainer"] h1 {
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stMainBlockContainer"] h1 {
         text-align: center;
         width: 100%;
     }
     /* Center the form submit button */
-    .login-page [data-testid="stFormSubmitButton"] {
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] {
         display: flex;
         justify-content: center;
     }
-    .login-page [data-testid="stFormSubmitButton"] button {
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button {
         min-width: 160px;
     }
     /* Left-align the "Press Enter to submit" helper text */
-    .login-page [data-testid="stForm"] [data-testid="stMarkdown"] {
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stForm"] [data-testid="stMarkdown"] {
         text-align: left;
     }
     /* Center spinner/status messages on login page instantly to prevent flashes */
-    .login-page [data-testid="stElementContainer"]:has([data-testid="stSpinner"]),
-    .login-page .element-container:has([data-testid="stSpinner"]),
-    .login-page [data-testid="stElementContainer"]:has(.stSpinner),
-    .login-page .element-container:has(.stSpinner),
-    .login-page [data-testid="stElementContainer"]:has([data-testid="stStatusWidget"]),
-    .login-page .element-container:has([data-testid="stStatusWidget"]) {
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stElementContainer"]:has([data-testid="stSpinner"]),
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) .element-container:has([data-testid="stSpinner"]),
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stElementContainer"]:has(.stSpinner),
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) .element-container:has(.stSpinner),
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stElementContainer"]:has([data-testid="stStatusWidget"]),
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) .element-container:has([data-testid="stStatusWidget"]) {
         display: flex !important;
         justify-content: center !important;
         width: 100% !important;
         margin-top: 2.5rem !important;
     }
     /* Reduce space by 1 line between consecutive spinners/status widgets */
-    .login-page [data-testid="stElementContainer"]:has([data-testid="stSpinner"]) + [data-testid="stElementContainer"]:has([data-testid="stSpinner"]),
-    .login-page .element-container:has([data-testid="stSpinner"]) + .element-container:has([data-testid="stSpinner"]),
-    .login-page [data-testid="stElementContainer"]:has(.stSpinner) + [data-testid="stElementContainer"]:has(.stSpinner),
-    .login-page .element-container:has(.stSpinner) + .element-container:has(.stSpinner) {
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stElementContainer"]:has([data-testid="stSpinner"]) + [data-testid="stElementContainer"]:has([data-testid="stSpinner"]),
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) .element-container:has([data-testid="stSpinner"]) + .element-container:has([data-testid="stSpinner"]),
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stElementContainer"]:has(.stSpinner) + [data-testid="stElementContainer"]:has(.stSpinner),
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) .element-container:has(.stSpinner) + .element-container:has(.stSpinner) {
         margin-top: 0.5rem !important;
     }
-    .login-page [data-testid="stSpinner"],
-    .login-page [data-testid="stStatusWidget"],
-    .login-page .stSpinner {
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stSpinner"],
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stStatusWidget"],
+    [data-testid="stAppViewContainer"]:has(#login-css-hook) .stSpinner {
         display: flex;
         justify-content: center;
         text-align: center;
@@ -1631,18 +1623,6 @@ def check_password():
     }
     </style>
     """, unsafe_allow_html=True)
-
-    # Inject JS to add 'login-page' class to the app container
-    st.components.v1.html("""
-    <script>
-    (function() {
-        var appEl = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
-        if (appEl && !appEl.classList.contains('login-page')) {
-            appEl.classList.add('login-page');
-        }
-    })();
-    </script>
-    """, height=0)
 
     st.title("🔒 Antigravity Dashboard", anchor=False)
     # Description removed per user request
@@ -1680,79 +1660,39 @@ def check_password():
             unlock_clicked = st.form_submit_button("Unlock", use_container_width=True)
     
     if unlock_clicked:
-        st.components.v1.html("""
-        <script>
-        (function forceCenterSpinners() {
-            try {
-                const doc = window.parent.document;
-                const terms = ['Verifying via Google', 'Loading API keys'];
-                const leaves = doc.querySelectorAll('div, span, p');
-                
-                leaves.forEach(el => {
-                    const txt = el.textContent || '';
-                    if (el.children.length === 0 && terms.some(t => txt.includes(t))) {
-                        // Found the text leaf node
-                        const container = el.closest('.element-container') || el.closest('[data-testid="stElementContainer"]');
-                        if (container) {
-                            // Center the outer Streamlit container
-                            container.style.setProperty('display', 'flex', 'important');
-                            container.style.setProperty('justify-content', 'center', 'important');
-                            container.style.setProperty('width', '100%', 'important');
-                            
-                            // Walk UP from leaf to container to force flex centering on all wrappers
-                            let curr = el;
-                            while (curr && curr !== container) {
-                                curr.style.setProperty('display', 'flex', 'important');
-                                curr.style.setProperty('flex-direction', 'row', 'important');
-                                curr.style.setProperty('justify-content', 'center', 'important');
-                                curr.style.setProperty('align-items', 'center', 'important');
-                                curr.style.setProperty('text-align', 'center', 'important');
-                                // Reset widths so they shrink-wrap and can be centered by parent
-                                curr.style.setProperty('width', 'fit-content', 'important'); 
-                                curr.style.setProperty('margin', '0 auto', 'important');
-                                curr = curr.parentElement;
-                            }
-                        }
-                    }
-                });
-            } catch (e) {}
-            // Run frequently to catch Streamlit's fast DOM updates
-            setTimeout(forceCenterSpinners, 20); 
-        })();
-        </script>
-        """, height=0)
-        with st.spinner("Verifying via Google Cloud Secret Manager..."):
-            try:
-                real_secret = _fetch_gcp_secret("DEV-TEST1-LOGIN")
-                if not real_secret:
-                    st.error("Failed to fetch secret from GCP. Check your gcloud auth.")
-                    return False
-                    
-                if password == real_secret:
-                    st.session_state["authenticated"] = True
-
-                    
-                    # Auto-fetch API keys from GCP secrets at login
-                    with st.spinner("Loading API keys from GCP..."):
-                        gemini_key = _fetch_gcp_secret("DEV-TEST2-GEMINI")
-                        if gemini_key:
-                            st.session_state["GEMINI_API_KEY"] = gemini_key
-                        elevenlabs_key = _fetch_gcp_secret("DEV-TEST3-11LABS")
-                        if elevenlabs_key:
-                            st.session_state["ELEVENLABS_API_KEY"] = elevenlabs_key
-                        kie_key = _fetch_gcp_secret("DEV-TEST0-KIE")
-                        if kie_key:
-                            st.session_state["KIE_API_KEY"] = kie_key
+        _spin_l, _spin_col, _spin_r = st.columns([1, 2, 1])
+        with _spin_col:
+            with st.spinner("Verifying via Google Cloud Secret Manager..."):
+                try:
+                    real_secret = _fetch_gcp_secret("DEV-TEST1-LOGIN")
+                    if not real_secret:
+                        st.error("Failed to fetch secret from GCP. Check your gcloud auth.")
+                        return False
                         
-                        g_user_email = _fetch_gcp_secret("DEV-TEST5-G_USER")
-                        if g_user_email:
-                            st.session_state["GCP_USER_EMAIL"] = g_user_email
-                    
-                    st.rerun()
-                else:
-                    st.error("Incorrect password or failed to fetch secret. Ensure you are logged in to gcloud (`gcloud auth login`).")
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+                    if password == real_secret:
+                        st.session_state["authenticated"] = True
+                        
+                        # Auto-fetch API keys from GCP secrets at login
+                        with st.spinner("Loading API keys from GCP..."):
+                            gemini_key = _fetch_gcp_secret("DEV-TEST2-GEMINI")
+                            if gemini_key:
+                                st.session_state["GEMINI_API_KEY"] = gemini_key
+                            elevenlabs_key = _fetch_gcp_secret("DEV-TEST3-11LABS")
+                            if elevenlabs_key:
+                                st.session_state["ELEVENLABS_API_KEY"] = elevenlabs_key
+                            kie_key = _fetch_gcp_secret("DEV-TEST0-KIE")
+                            if kie_key:
+                                st.session_state["KIE_API_KEY"] = kie_key
+                            
+                            g_user_email = _fetch_gcp_secret("DEV-TEST5-G_USER")
+                            if g_user_email:
+                                st.session_state["GCP_USER_EMAIL"] = g_user_email
+                        
+                        st.rerun()
+                    else:
+                        st.error("Incorrect password or failed to fetch secret. Ensure you are logged in to gcloud (`gcloud auth login`).")
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
     return False
 
