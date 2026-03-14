@@ -49,7 +49,13 @@
 /* 6. Login Page & Accent Elements - RESTRICTED TO LOGIN PAGE */
 /* Style secondary and form-submit buttons (Unlock) yellow and match size to Browse button */
 [data-testid="stAppViewContainer"]:has(#login-css-hook) button[data-testid*="secondary"],
-[data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button {
+[data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button,
+[data-testid="stAppViewContainer"]:has(#login-css-hook) button[data-testid*="secondary"]:disabled,
+[data-testid="stAppViewContainer"]:has(#login-css-hook) button[data-testid*="secondary"]:active,
+[data-testid="stAppViewContainer"]:has(#login-css-hook) button[data-testid*="secondary"]:focus,
+[data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button:disabled,
+[data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button:active,
+[data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button:focus {
     background-color: #FFE300 !important;
     color: #000000 !important;
     font-weight: bold !important;
@@ -59,6 +65,7 @@
     padding: 0.25rem 0.75rem !important;
     font-size: 1rem !important;
     width: auto !important;
+    opacity: 1 !important;
 }
 
 [data-testid="stAppViewContainer"]:has(#login-css-hook) button[data-testid*="secondary"]:hover,
