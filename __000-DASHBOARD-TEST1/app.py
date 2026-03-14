@@ -682,6 +682,17 @@ def trigger_processing_overlay():
                                 parentWin.setTimeout(function() {
                                     curtain.style.opacity = '0';
                                     parentWin.setTimeout(function() { curtain.remove(); }, 700);
+                                    
+                                    // Animate sidebar back in alongside curtain drop
+                                    const sb = doc.querySelector('[data-testid="stSidebar"]');
+                                    if (sb) {
+                                        sb.style.display = '';
+                                        // Force reflow so display block applies before transitions
+                                        void sb.offsetWidth;
+                                        sb.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                                        sb.style.opacity = '1';
+                                        sb.style.transform = 'translateX(0)';
+                                    }
                                 }, 100);
                             }, 300);
                             
@@ -1624,8 +1635,8 @@ def check_password():
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("🔒 Antigravity Dashboard", anchor=False)
-    # Description removed per user request
+    st.markdown("<div class='login-page'>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #a8ffdb; margin-bottom: 20px;'>🔒 Antigravity Dashboard</h2>", unsafe_allow_html=True)
     
     with st.form("login_form", clear_on_submit=False, border=False):
         _pw_spacer_l, _pw_col, _pw_spacer_r = st.columns([1, 2, 1])
@@ -1655,11 +1666,10 @@ def check_password():
             height=0
         )
         
-        # Container for reliable yellow styling
-        st.markdown("<div class='unlock-btn-container'>", unsafe_allow_html=True)
         unlock_clicked = st.form_submit_button("Unlock", use_container_width=False)
-        st.markdown("</div>", unsafe_allow_html=True)
     
+    st.markdown("</div>", unsafe_allow_html=True)
+
     if unlock_clicked:
         _spin_l, _spin_col, _spin_r = st.columns([1, 2, 1])
         with _spin_col:
