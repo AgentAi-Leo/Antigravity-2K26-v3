@@ -32,10 +32,10 @@ Adds:
     - Centered LOGIN SCREEN... FINALLY
     - Adding Watch Folder Support to Convtr-PlainTxt2PDF - stills needs work 
     - Broke Previous/NEXT Functionality om Convtr-PlainTxt2PDF - FIX NEXT!!!x
+    - fix Subsequent Uploading Issues in Convtr-PlainTxt2PDF
 
 
     
-
 
 .gitignore hardened — these will never be committed to GitHub:
 .env  .env.*  *.env  .envrc  *.key  *.pem  secrets.json
