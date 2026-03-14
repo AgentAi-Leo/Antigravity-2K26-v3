@@ -1593,24 +1593,19 @@ def check_password():
         text-align: center;
         width: 100%;
     }
-    /* Center the form submit button */
-    [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] {
-        display: flex;
-        justify-content: center;
-    }
-    }
+    /* Remove huge gap between input and button */
     [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] {
         display: flex;
         justify-content: center;
         width: 100%;
-        margin-top: -60px !important;
+        margin-top: -10px !important;
     }
     [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button {
-        min-width: 160px;
+        width: 100% !important;
     }
-    /* Left-align the "Press Enter to submit" helper text */
+    /* Center the "Press Enter to submit" helper text */
     [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stForm"] [data-testid="stMarkdown"] {
-        text-align: left;
+        text-align: center;
     }
     /* Center spinner/status messages on login page instantly to prevent flashes */
     [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stElementContainer"]:has([data-testid="stSpinner"]),
@@ -1649,33 +1644,30 @@ def check_password():
         _pw_spacer_l, _pw_col, _pw_spacer_r = st.columns([1, 2, 1])
         with _pw_col:
             password = st.text_input("Password", type="password", placeholder="Enter Password", label_visibility="collapsed")
-            st.markdown("<span style='color: #FFE300; font-size: 0.85em;'>Press RETURN to submit</span>", unsafe_allow_html=True)
-        
-        # Keybind TAB to focus the password input field
-        st.components.v1.html(
-            """
-            <script>
-            const doc = window.parent.document;
-            if (!doc._tabKeyBound) {
-                doc._tabKeyBound = true;
-                doc.addEventListener('keydown', function(e) {
-                    if (e.key === 'Tab' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-                        const pwInput = doc.querySelector('input[type="password"]');
-                        if (pwInput) {
-                            pwInput.focus();
-                            e.preventDefault();
-                        }
-                    }
-                });
-            }
-            </script>
-            """,
-            height=0
-        )
-        # Removed <br> to move the button upwards
-        _btn_l, _btn_c, _btn_r = st.columns([3, 2, 3])
-        with _btn_c:
             unlock_clicked = st.form_submit_button("Unlock", use_container_width=True)
+            st.markdown("<p style='color: #FFE300; font-size: 0.85em; text-align: center; margin-top: 10px;'>Press RETURN to submit</p>", unsafe_allow_html=True)
+            
+            # Keybind TAB to focus the password input field
+            st.components.v1.html(
+                """
+                <script>
+                const doc = window.parent.document;
+                if (!doc._tabKeyBound) {
+                    doc._tabKeyBound = true;
+                    doc.addEventListener('keydown', function(e) {
+                        if (e.key === 'Tab' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                            const pwInput = doc.querySelector('input[type="password"]');
+                            if (pwInput) {
+                                pwInput.focus();
+                                e.preventDefault();
+                            }
+                        }
+                    });
+                }
+                </script>
+                """,
+                height=0
+            )
 
     if unlock_clicked:
         _spin_l, _spin_col, _spin_r = st.columns([1, 2, 1])
