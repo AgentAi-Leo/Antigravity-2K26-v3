@@ -56,33 +56,33 @@
 [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button:disabled,
 [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button:active,
 [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button:focus {
-    background-color: #FFE300 !important;
+    background-color: #ffe700 !important;
     color: #000000 !important;
     font-weight: bold !important;
-    border: 1px solid #FFE300 !important;
+    border: 1px solid #ffe700 !important;
     border-radius: 8px !important;
     height: 42px !important;
     padding: 0.25rem 0.75rem !important;
     font-size: 1rem !important;
-    width: 100% !important;
+    width: 120px !important;
     opacity: 1 !important;
     transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease !important;
 }
 
 [data-testid="stAppViewContainer"]:has(#login-css-hook) button[data-testid*="secondary"]:hover,
 [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button:hover {
-    background-color: #FFD600 !important;
-    border-color: #FFD600 !important;
-    box-shadow: 0 4px 12px rgba(255, 214, 0, 0.3) !important;
+    background-color: #ffe700 !important;
+    border-color: #ffe700 !important;
+    box-shadow: 0 4px 12px rgba(255, 231, 0, 0.4) !important;
     transform: translateY(-1px) !important;
 }
 
 
 /* Ensure password visibility toggle stays yellow/black */
 [data-testid="stAppViewContainer"]:has(#login-css-hook) div[data-testid="stTextInput"] button {
-    background-color: #FFE300 !important;
+    background-color: #ffe700 !important;
     color: #000000 !important;
-    border: 1px solid #FFE300 !important;
+    border: 1px solid #ffe700 !important;
 }
 
 [data-testid="stAppViewContainer"]:has(#login-css-hook) div[data-testid="stTextInput"] button svg {

@@ -238,7 +238,7 @@ def render_word_tracker(alignment_data, clip_name="", estimated=False):
         return
     
     # Build word spans with data attributes for timing
-    word_spans = []
+    word_spans: list[str] = []
     for i, word in enumerate(words):
         safe_word = _html_wt.escape(word)
         if estimated:
@@ -382,9 +382,6 @@ def cancel_processing():
     if uploaded_ids:
         import threading
         def cleanup_drive_files(ids_to_delete):
-            import subprocess
-            import os
-            import sys
             try:
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 delete_script = os.path.abspath(os.path.join(current_dir, "..", "_000-Basics", "Data-GoogleDrive", "scripts", "delete_from_drive.py"))
@@ -1237,6 +1234,41 @@ def process_tts_files(file_paths, selected_skill, run_env, base_args_input="", d
 st.set_page_config(page_title="Antigravity Skills", page_icon="🚀", layout="wide")
 load_css() # Global CSS load to ensure banners work on main page
 
+# Force sidebar visibility on specific reruns (like CLEAR ALL)
+if st.session_state.get("_force_sidebar_visible", False):
+    st.markdown("""
+        <style>
+            @keyframes agFadeIn {
+                0% { opacity: 0; transform: translateX(-20px); }
+                100% { opacity: 1; transform: translateX(0); }
+            }
+            /* Unconditionally force the sidebar visible, overriding any inline JS styles */
+            [data-testid="stSidebar"] {
+                display: flex !important;
+                flex-direction: column !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                transform: translateX(0) !important;
+                animation: agFadeIn 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+            }
+            /* Also explicitly unhide the inner scroll containers just in case React targets them */
+            [data-testid="stSidebar"] > div {
+                display: flex !important;
+                flex-direction: column !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                transform: translateX(0) !important;
+                animation: agFadeIn 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+            }
+            /* Force all children to be visible so content doesn't get hollowed out */
+            [data-testid="stSidebar"] * {
+                visibility: visible !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    # Clear the flag so it only runs once per trigger
+    st.session_state["_force_sidebar_visible"] = False
+
 # -----------------------------------------------------------------------------
 # Helper: Generate PDF via Convtr-PlainTxt2PDF Skill
 # -----------------------------------------------------------------------------
@@ -1462,11 +1494,9 @@ def read_text_file_preview(path: str) -> str:
     except Exception as e:
         return f"(Could not generate preview: {e})"
    # Helper: Generate a ZIP file of all transcripts dynamically
-@st.cache_data(show_spinner=False, max_entries=50)
 def generate_zip_of_all_transcripts(processed_files_list, format_option, include_sources=False):
     import io
     import zipfile
-    import os
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
         for i, f in enumerate(processed_files_list):
@@ -1598,10 +1628,10 @@ def check_password():
         display: flex;
         justify-content: center;
         width: 100%;
-        margin-top: -10px !important;
+        margin-top: 5px !important;
     }
     [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stFormSubmitButton"] button {
-        width: 100% !important;
+        width: 120px !important;
     }
     /* Center the "Press Enter to submit" helper text */
     [data-testid="stAppViewContainer"]:has(#login-css-hook) [data-testid="stForm"] [data-testid="stMarkdown"] {
@@ -1644,14 +1674,40 @@ def check_password():
         _pw_spacer_l, _pw_col, _pw_spacer_r = st.columns([1, 2, 1])
         with _pw_col:
             password = st.text_input("Password", type="password", placeholder="Enter Password", label_visibility="collapsed")
-            unlock_clicked = st.form_submit_button("Unlock", use_container_width=True)
-            st.markdown("<p style='color: #FFE300; font-size: 0.85em; text-align: center; margin-top: 10px;'>Press RETURN to submit</p>", unsafe_allow_html=True)
             
-            # Keybind TAB to focus the password input field
-            st.components.v1.html(
+            st.markdown("<p style='color: #ffe700; font-size: 0.85em; text-align: left; margin-top: 10px; margin-bottom: 5px; margin-left: 2px;'>Press RETURN to submit</p>", unsafe_allow_html=True)
+            
+            unlock_clicked = st.form_submit_button("Unlock", use_container_width=False)
+            
+            # Keybind TAB to focus the password input field and style the Unlock button
+            components.html(
                 """
                 <script>
                 const doc = window.parent.document;
+                
+                // Style the Unlock button container to be perfectly centered
+                let unlockRetries = 0;
+                (function styleUnlockButton() {
+                    const allButtons = doc.querySelectorAll('button');
+                    let target = null;
+                    for (const b of allButtons) {
+                        if (b.textContent && b.textContent.trim() === 'Unlock') {
+                            target = b.closest('div[data-testid="stElementContainer"]') || b.closest('.element-container');
+                            break;
+                        }
+                    }
+                    if (!target) {
+                        unlockRetries++;
+                        if (unlockRetries < 60) { // Limit to ~3 seconds max
+                            setTimeout(styleUnlockButton, 50);
+                        }
+                        return;
+                    }
+                    // Apply styles directly to the parent container
+                    target.style.cssText = 'display: flex !important; justify-content: center !important; width: 100% !important; margin-top: 2px !important;';
+                })();
+                
+                // Tab keybinding
                 if (!doc._tabKeyBound) {
                     doc._tabKeyBound = true;
                     doc.addEventListener('keydown', function(e) {
@@ -1712,24 +1768,39 @@ if not check_password():
 # If a previous run orphaned the processing overlay (e.g. st.stop() during error),
 # remove it immediately on this re-render so the user isn't stuck.
 import streamlit.components.v1 as _cleanup_components  # type: ignore[import-not-found]
-_cleanup_components.html("""
+import time as _time_cleanup
+_cleanup_components.html(f"""
     <script>
-        (function() {
+        // Force execution every render cycle: {_time_cleanup.time()}
+        (function() {{
             const doc = window.parent.document;
             const overlay = doc.getElementById('ag-processing-overlay');
             const marker = doc.querySelector('.processing-marker');
-            // If overlay exists but no marker, it's stale — remove it
-            if (overlay && !marker) {
-                overlay.remove();
-                // Restore sidebar if it was hidden
+            
+            // ALWAYS ensure sidebar is visible unless processing is actively happening
+            if (!marker) {{
                 const sb = doc.querySelector('[data-testid="stSidebar"]');
-                if (sb) {
+                if (sb && (sb.style.display === 'none' || sb.style.opacity === '0' || sb.style.transform.includes('-100%'))) {{
+                    sb.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
                     sb.style.display = '';
+                    // Force reflow
+                    void sb.offsetWidth;
                     sb.style.opacity = '1';
-                    sb.style.transform = '';
-                }
-            }
-        })();
+                    sb.style.transform = 'translateX(0)';
+                    
+                    setTimeout(() => {{
+                        sb.style.transition = '';
+                        sb.style.transform = '';
+                        sb.style.opacity = '';
+                    }}, 650);
+                }}
+            }}
+            
+            // If overlay exists but no marker, it's stale — remove it
+            if (overlay && !marker) {{
+                overlay.remove();
+            }}
+        }})();
     </script>
 """, height=0)
 
@@ -2170,8 +2241,14 @@ for cat in categories:
     cat_skills = [s for s in display_skills if s["category"] == cat]
     if not cat_skills:
         continue
+    is_cat_expanded = False
+    if selected_skill is not None:
+        if cat and "Basics" in cat:
+            is_cat_expanded = False
+        else:
+            is_cat_expanded = bool(selected_skill.get("category") == cat)  # type: ignore[union-attr]
         
-    with st.sidebar.expander(f"📁 {cat}", expanded=False):
+    with st.sidebar.expander(f"📁 {cat}", expanded=is_cat_expanded):
         for s in cat_skills:
             # Highlight selected skill
             is_selected = st.session_state.selected_skill_id == s["id"]
@@ -2296,7 +2373,7 @@ if is_pdf_skill:
             if _path:
                 _expanded = os.path.expanduser(_path)
                 if os.path.isdir(_expanded):
-                    subprocess.Popen(["open", _expanded])
+                    subprocess.Popen(["open", str(_expanded)])
         
         # Row 1: Path input + Polling Interval
         _wf_col_path, _wf_col_interval = st.columns([4, 1.2])
@@ -2423,11 +2500,13 @@ if is_pdf_skill:
                 st.session_state["_wf_pending_count"] = len(_pending_files)
                 
                 _processed_dir = os.path.join(_resolved_watch_path, "zProcessed")
-                _total_processed = 0
+                _tp_count = 0
                 if os.path.isdir(_processed_dir):
                     for _date_dir in os.scandir(_processed_dir):
                         if _date_dir.is_dir():
-                            _total_processed += len([f for f in os.scandir(_date_dir.path) if f.is_file()])
+                            _count_files = len([f for f in os.scandir(str(_date_dir.path)) if f.is_file()])
+                            _tp_count = _tp_count + _count_files # type: ignore
+                _total_processed = _tp_count
                 
                 # --- Auto-process pending files ---
                 import datetime as _wf_dt
@@ -2858,7 +2937,7 @@ if _addmore_pending:
     for af in _addmore_pending:
         if (af.name + str(af.size)) not in existing_ids:
             if uploaded_files is None:
-                uploaded_files = []
+                uploaded_files = [] # type: ignore
             uploaded_files.append(af)
             existing_ids.add(af.name + str(af.size))
         
@@ -3156,17 +3235,18 @@ if should_run:
                 if selected_skill_id == "AI-LLM-RAGQuery":
                     args_input += f" --docs {text_file_path}"
                 # For Translate/General, if args empty, use as --input
-                elif not args_input.strip() or "--to" in args_input:
-                     args_input += f" --input {text_file_path}"
+                elif not str(args_input).strip() or "--to" in str(args_input):
+                     args_input = str(args_input) + f" --input {text_file_path}"
             
             # Handle Uploaded Files
             elif files_to_process_objs:
-                if not args_input.strip() or ("--to" in args_input and "--input" not in args_input):
+                args_str = str(args_input)
+                if not args_str.strip() or ("--to" in args_str and "--input" not in args_str):
                     # Only auto-inject if it's not already specialized except for Translate which needs --input
                     if selected_skill_id == "AI-LLM-RAGQuery":
-                         args_input += " --docs {FILE_1}"
+                         args_input = args_str + " --docs {FILE_1}"
                     else:
-                         args_input += " --input {FILE_1}"
+                         args_input = args_str + " --input {FILE_1}"
                 
                 # Preserve the base args so we don't lose the {FILE_1} placeholder when looping
                 base_args_input = str(args_input)
@@ -3356,21 +3436,21 @@ if should_run:
                         for line in output_text.splitlines():
                             if "Saved:" in line:
                                 path_str = str(line.split("Saved:")[1].strip())
-                                full_path = path_str if os.path.isabs(path_str) else os.path.join(str(cwd), path_str)
-                                if os.path.exists(full_path):
+                                full_path = path_str if os.path.isabs(path_str) else os.path.join(str(cwd), path_str) # type: ignore
+                                if os.path.exists(full_path): # type: ignore
                                     saved_paths.append(full_path)
                                     
                         if saved_paths:
                             # Capture the first saved file as the primary result for this entry
-                            res_name = os.path.basename(saved_paths[0])
+                            res_name = os.path.basename(saved_paths[0]) # type: ignore
                             with open(saved_paths[0], "rb") as f:
                                 res_bytes = f.read()
 
                         # Capture preview for the input file (if it exists)
                         content_preview = ""
                         if fp:
-                            ext = os.path.splitext(fp)[1].lower()
-                            if ext in [".txt", ".rtf", ".md", ".docx", ".doc", ".rtfd"] or (ext != ".pdf" and os.path.getsize(fp) < 1024 * 1024):
+                            ext = os.path.splitext(str(fp))[1].lower() # type: ignore
+                            if ext in [".txt", ".rtf", ".md", ".docx", ".doc", ".rtfd"] or (ext != ".pdf" and os.path.getsize(str(fp)) < 1024 * 1024): # type: ignore
                                 content_preview = read_text_file_preview(str(fp))
 
                         # Clean output (filter success messages)
@@ -3818,7 +3898,7 @@ def show_result_popup(text: str):
         # Hide for Google Sheet skill as it's redundant (always just one "Result")
         if not is_google_sheet:
             # Make expander text 40% larger and position text above arrow
-            st.markdown("<h4 style='text-align:left; margin-top:2em; margin-bottom:1em;'>SHOW MY DOCS</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align:left; margin-top:2em; margin-bottom:1em;'>UPLOADED DOCS LIST</h4>", unsafe_allow_html=True)
             st.markdown("""<style>
                 .stApp:has(#ag-result-marker) div[data-testid="stExpander"] summary {
                     flex-direction: column-reverse !important;
@@ -3999,7 +4079,7 @@ def show_result_popup(text: str):
             st.markdown("<br>", unsafe_allow_html=True)
             
             # Force correct extension if this is the PDF Converter
-            if selected_skill["basename"] == "Convtr-PlainTxt2PDF" and not res_name.lower().endswith(".pdf"):
+            if selected_skill and selected_skill["basename"] == "Convtr-PlainTxt2PDF" and not res_name.lower().endswith(".pdf"):
                 res_name = os.path.splitext(res_name)[0] + ".pdf"
             
             # Use mimetypes for clean extension labeling
@@ -4008,7 +4088,7 @@ def show_result_popup(text: str):
             ext_label = os.path.splitext(res_name)[1][1:].upper()
             
             # Determine dynamic button label
-            dl_btn_label = "DOWNLOAD PDF" if selected_skill["basename"] == "Convtr-PlainTxt2PDF" else f"DOWNLOAD {ext_label}"
+            dl_btn_label = "DOWNLOAD PDF" if selected_skill and selected_skill["basename"] == "Convtr-PlainTxt2PDF" else f"DOWNLOAD {ext_label}"
             
             # Specialized player for audio results (like TTS)
             if dl_mime and dl_mime.startswith("audio/"):
@@ -4276,6 +4356,7 @@ def show_result_popup(text: str):
         set_skill_state("last_output", None)
         set_skill_state("auto_open_result", None)
         set_skill_state("direct_download_file", None)
+        st.session_state["_force_sidebar_visible"] = True
         st.rerun()
 
     # --- JAVASCRIPT POST-RENDER STYLING ALGORITHM ---
@@ -4325,6 +4406,28 @@ def show_result_popup(text: str):
                         elContainer.style.setProperty("justify-content", "flex-end", "important");
                         elContainer.style.setProperty("width", "100%", "important");
                     }
+                    
+                    // NEW: Immediately restore sidebar before streamlit processes click
+                    if (!btn._agSidebarFixAttached) {
+                        btn._agSidebarFixAttached = true;
+                        btn.addEventListener('click', function() {
+                            const sb = doc.querySelector('[data-testid="stSidebar"]');
+                            if (sb && (sb.style.display === 'none' || sb.style.opacity === '0' || sb.style.transform.includes('-100%'))) {
+                                sb.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                                sb.style.display = '';
+                                void sb.offsetWidth; // Force reflow
+                                sb.style.opacity = '1';
+                                sb.style.transform = 'translateX(0)';
+                                
+                                setTimeout(() => {
+                                    sb.style.transition = '';
+                                    sb.style.transform = '';
+                                    sb.style.opacity = '';
+                                }, 650);
+                            }
+                        });
+                    }
+                    
                     foundClear = true;
                 }
             }
@@ -4376,6 +4479,10 @@ components.html("""
                     /* Hide the header/toolbar behind the overlay */
                     .stApp:has(#ag-result-marker) > header {
                         z-index: 0 !important;
+                    }
+                    /* Completely hide the sidebar when the result overlay is open */
+                    .stApp:has(#ag-result-marker) [data-testid="stSidebar"] {
+                        display: none !important;
                     }
                     /* HIDE all page content that is NOT the result popup */
                     /* Target top-level children in the main vertical block */

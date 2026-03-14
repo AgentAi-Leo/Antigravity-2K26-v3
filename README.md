@@ -29,8 +29,9 @@ Adds:
     - Vers L Static Sync Text - Better Sizing & Highlighting
     - Added .2s Curtain FX For Sidebar Fade/Scroll To Final Results 
     - CONSIDER: Adding Dropdown Menu For Style Selection
-    - Centered LOGIN SCREEN
-    - Adding Watch Folder Support to Convtr-PlainTxt2PDF
+    - Centered LOGIN SCREEN... FINALLY
+    - Adding Watch Folder Support to Convtr-PlainTxt2PDF - stills needs work 
+    - Broke Previous/NEXT Functionality om Convtr-PlainTxt2PDF - FIX NEXT!!!x
 
 
     
