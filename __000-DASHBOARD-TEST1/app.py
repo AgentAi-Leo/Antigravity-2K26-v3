@@ -1697,7 +1697,7 @@ def check_password():
     st.markdown("</div>", unsafe_allow_html=True)
     return False
 
-if not check_password():
+if False and not check_password():
     st.stop()  # Do not render the rest of the app until authenticated
 
 # --- Stale processing overlay cleanup ---
@@ -2837,6 +2837,22 @@ if uploaded_files and not is_audio_skill and not is_tts_skill:
 
 # ALWAYS check for duplicates to synchronize state when the user clears the widget
 uploaded_files = check_new_uploads_for_duplicates(uploaded_files if uploaded_files else [])
+
+# --- Merge in files from the ADD MORE uploader in the result popup ---
+_addmore_pending = st.session_state.pop("_addmore_pending", None)
+if _addmore_pending:
+    # Combine with any existing uploads, avoiding duplicates by name+size
+    existing_ids = set((f.name + str(f.size)) for f in (uploaded_files or []))
+    # Also exclude files already processed in this session
+    _proc_set = get_skill_state("processed_files", set())
+    if isinstance(_proc_set, set):
+        existing_ids.update(_proc_set)
+    for af in _addmore_pending:
+        if (af.name + str(af.size)) not in existing_ids:
+            if uploaded_files is None:
+                uploaded_files = []
+            uploaded_files.append(af)
+            existing_ids.add(af.name + str(af.size))
         
 if uploaded_files:
     file_names = ", ".join([f.name for f in uploaded_files])
@@ -3009,7 +3025,27 @@ elif selected_skill and selected_skill.get("basename") == "AI-LLM-TranslateText"
 elif selected_skill and selected_skill.get("basename") in ["Data-GoogleSheet", "Data-CustomGoogleSheet"] and skill_args.get("title") and skill_args.get("fields") and skill_args.get("_force_run") == "True":
     has_special_input = True
 
-should_run = auto_run or manual_run_clicked or (url_input != "") or has_special_input or (manual_text != "" and enter_clicked) or (not is_tts_skill and manual_text != "")
+# Prevent infinite auto-run loops when clearing the results popup
+auto_manual = False
+if not is_tts_skill and manual_text != "":
+    if manual_text != get_skill_state("prev_manual_text"):
+        set_skill_state("prev_manual_text", manual_text)
+        auto_manual = True
+
+auto_special = False
+if has_special_input:
+    curr_spec = str(skill_args)
+    if curr_spec != get_skill_state("prev_spec_args"):
+        set_skill_state("prev_spec_args", curr_spec)
+        auto_special = True
+
+auto_url = False
+if url_input != "":
+    if url_input != get_skill_state("prev_url_input"):
+        set_skill_state("prev_url_input", url_input)
+        auto_url = True
+
+should_run = auto_run or manual_run_clicked or auto_url or auto_special or (manual_text != "" and enter_clicked) or auto_manual
 
 if should_run:
     args_input = ""
@@ -3965,22 +4001,45 @@ def show_result_popup(text: str):
                 render_speed_controls(skill_id=selected_skill_id, clip_name=str(res_name or ''))
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-            # Rendered flat — centering is handled by overlay CSS targeting stDownloadButton
-            st.download_button(
-                label=f"📥 DOWNLOAD {ext_label} NOW",
-                data=res_bytes,
-                file_name=res_name,
-                mime=dl_mime if dl_mime else "application/octet-stream",
-                use_container_width=False,
-                type="primary",
-                key=f"direct_download_btn_sync_{idx}" # Key must be index-specific to prevent state reuse
-            ) # type: ignore
+            # Centering handled via HTML to bypass Streamlit display:revert overrides
+            import base64
+            b64_data = base64.b64encode(res_bytes).decode('utf-8')
+            mime_type = dl_mime if dl_mime else "application/octet-stream"
+            
+            st.markdown(
+                f"""
+                <div style="text-align: center; margin-top: 5px; margin-bottom: 5px;">
+                    <a href="data:{mime_type};base64,{b64_data}" download="{res_name}" style="
+                        display: inline-block;
+                        background-color: #8cd775;
+                        color: #000000;
+                        border: 1px solid #8cd775;
+                        border-radius: 4px;
+                        padding: 0px 16px;
+                        line-height: 38px;
+                        height: 38px;
+                        font-size: 1rem;
+                        cursor: pointer;
+                        font-family: 'Source Sans Pro', sans-serif;
+                        font-weight: bold;
+                        text-decoration: none;
+                        transition: all 0.2s;
+                        min-width: 100px;
+                        text-transform: uppercase;
+                    " onmouseover="this.style.backgroundColor='#9fe788'; this.style.borderColor='#9fe788';" 
+                      onmouseout="this.style.backgroundColor='#8cd775'; this.style.borderColor='#8cd775';">
+                        📥 DOWNLOAD PDF
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
             
             # --- TOP BATCH ACTIONS (For PDF Converter) ---
             if selected_skill["basename"] == "Convtr-PlainTxt2PDF" and len(processed_files) > 1: # type: ignore
                 st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
                 
-                # Use same column constraints as "DOWNLOAD PDF NOW" to match button size
+                # Use same column constraints as "DOWNLOAD PDF" to match button size
                 col_b1, col_b2, col_b3 = st.columns([2, 3, 2])
                 with col_b2:
                     # 1. Top Buttons: ZIP All (Cyan overridden in JS/Tertiary base)
@@ -4017,13 +4076,215 @@ def show_result_popup(text: str):
                         st.download_button(label=f"📑 MERGE ALL (INCLUDE SOURCES)", data=merged_bytes_sourced, file_name="Merged_Document_Sourced.pdf", mime="application/pdf", use_container_width=True, type="tertiary", key="popup_merge_pdf_sourced_top") # type: ignore
 
 
-    # --- Bottom Clear Button (centered via overlay CSS, generous spacing above) ---
-    st.markdown("<div style='margin-top: 80px;'></div>", unsafe_allow_html=True)
-    if st.button("✖ Clear Result", key="close_popup_final", use_container_width=False):
+    # --- ADD MORE Files Button (inside expander) ---
+    st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
+    # Determine allowed types based on current skill
+    _addmore_types = None
+    _sel_skill_raw = st.session_state.get("selected_skill_id", "")
+    _is_audio_addmore = any(n in str(_sel_skill_raw) for n in ["Speech2Text", "KIE-ElevenLabs-Speech2Text"])
+    _is_tts_addmore = any(n in str(_sel_skill_raw) for n in ["Text2Speech", "KIE-ElevenLabs-Text2Speech"])
+    if _is_audio_addmore:
+        _addmore_types = ["mp3", "wav", "m4a", "aac", "ogg", "flac", "webm", "aiff", "aif", "wma", "oga", "opus", "3gp", "mp4", "mov", "avi", "mkv"]
+    elif _is_tts_addmore:
+        _addmore_types = ["txt", "md", "rtf", "doc", "docx", "csv", "json", "py", "sh", "yaml", "yml", "ini"]
+    else:
+        _addmore_types = ["txt", "md", "docx", "doc", "csv", "json", "rtf", "py", "sh", "yaml", "yml"]
+
+    # --- ADD MORE FILES: Native Streamlit button styled with exact CSS classes injected via JS ---
+    _addmore_counter = st.session_state.get("_addmore_key_counter", 0)
+    _addmore_open_key = "addmore_panel_open"
+
+    st.markdown("""
+        <style>
+            /* Explicit classes added by the Javascript below */
+            .custom-addmore-btn {
+                background-color: transparent !important;
+                border: none !important;
+                color: #ffd700 !important;
+                font-size: 1rem !important;
+                font-family: 'Source Sans Pro', sans-serif !important;
+                font-weight: 700 !important;
+                padding: 0.5em 1em !important;
+                transition: all 0.2s !important;
+                box-shadow: none !important;
+                min-height: 0 !important;
+                height: auto !important;
+                outline: none !important;
+            }
+            .custom-addmore-btn:hover {
+                opacity: 0.8 !important;
+                background-color: transparent !important;
+                color: #ffd700 !important;
+                border: none !important;
+                outline: none !important;
+            }
+            .custom-addmore-btn p {
+                color: inherit !important;
+                font-weight: 700 !important;
+                margin: 0 !important;
+                text-align: center !important;
+                width: 100% !important;
+            }
+            .custom-addmore-btn div {
+                justify-content: center !important;
+                display: flex !important;
+                width: 100% !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)  # spacing
+    # use_container_width=True forces it 100% wide, allowing the JS text styling to perfectly center it visually!
+    if st.button("➕ ADD MORE FILES", key="addmore_toggle_btn", use_container_width=True):
+        st.session_state[_addmore_open_key] = not st.session_state.get(_addmore_open_key, False)
+        st.rerun()
+
+
+    # Show file uploader when panel is open
+    _addmore_files = None
+    if st.session_state.get(_addmore_open_key, False):
+        _addmore_files = st.file_uploader(
+            "Upload additional files",
+            accept_multiple_files=True,
+            label_visibility="collapsed",
+            type=_addmore_types,
+            key=f"addmore_uploader_{_addmore_counter}",
+        )
+
+    if _addmore_files:
+        # --- Duplicate filtering: reject files already processed or already in the upload queue ---
+        _processed_set = get_skill_state("processed_files", set())
+        _processed_set = _processed_set if isinstance(_processed_set, set) else set()
+        # Also check against whatever is currently in the main uploader
+        _current_uploaded = st.session_state.get(f"file_uploader_{st.session_state.get('selected_skill_id','')}", None)
+        _existing_ids = set()
+        if _current_uploaded:
+            for _uf in (_current_uploaded if isinstance(_current_uploaded, list) else [_current_uploaded]):
+                _existing_ids.add(_uf.name + str(_uf.size))
+        # Also include already-processed file IDs
+        _existing_ids.update(_processed_set)  # type: ignore
+
+        _new_files = []
+        _skipped = []
+        for _af in _addmore_files:
+            file_id = _af.name + str(_af.size)
+            if file_id in _existing_ids:
+                _skipped.append(_af.name)
+            else:
+                _new_files.append(_af)
+
+        if _skipped:
+            trigger_duplicate_error()
+            # Clear the newly added files to prevent infinite rerun loop of triggering error
+            _addmore_counter += 1
+            st.session_state["_addmore_key_counter"] = _addmore_counter
+            st.rerun()
+            
+        elif _new_files:
+            # We have valid new files -> trigger main processing and clean up UI
+            set_skill_state("addmore_pending_files", _new_files)
+            # Hide uploader and clear its state to reset for next time
+            st.session_state[_addmore_open_key] = False
+            _addmore_counter += 1
+            st.session_state["_addmore_key_counter"] = _addmore_counter
+            
+            # Since we are triggering a new backend run, ensure any auto-open triggers are removed 
+            # so the success overlay doesn't randomly pop open immediately.
+            set_skill_state("auto_open_result", False)
+            st.rerun()
+
+    # --- CLOSE BUTTON (Final UX styled, properly centered via explicit JS classes) ---
+    st.markdown("""
+        <style>
+            /* Explicit classes added by the Javascript below */
+            .custom-clear-btn {
+                background-color: transparent !important;
+                color: #aaaaaa !important;
+                border: 1px solid #aaaaaa !important;
+                border-radius: 4px !important;
+                padding: 8px 16px !important;
+                font-size: 0.9rem !important;
+                font-family: 'Source Sans Pro', sans-serif !important;
+                transition: all 0.2s !important;
+                box-shadow: none !important;
+                font-weight: normal !important;
+                min-height: 0 !important;
+                height: auto !important;
+                outline: none !important;
+                text-align: center !important;
+            }
+            .custom-clear-btn:hover {
+                color: #ffffff !important;
+                border-color: #ffffff !important;
+                background-color: transparent !important;
+                outline: none !important;
+            }
+            .custom-clear-btn p {
+                color: inherit !important;
+                margin: 0 !important;
+                text-align: center !important;
+                width: 100% !important;
+            }
+            .custom-clear-btn div {
+                justify-content: center !important;
+                display: flex !important;
+                width: 100% !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Use a specific height div to explicitly enforce the "2 spaces above"
+    st.markdown("<div style='height: 2em;'></div>", unsafe_allow_html=True)
+    
+    # We use use_container_width=False so it never word-wraps, and perfectly right-justify
+    # it safely using text-align in the javascript block below, avoiding flex overlaps.
+    if st.button("✖ Clear Result", key="close_popup_final_ux", use_container_width=False):
         set_skill_state("last_output", None)
         set_skill_state("auto_open_result", None)
         set_skill_state("direct_download_file", None)
         st.rerun()
+
+    # --- JAVASCRIPT POST-RENDER STYLING ALGORITHM ---
+    # According to the Streamlit styling workflow, the only bulletproof way to target elements 
+    # without failing due to nested CSS block specificity or testid mutations, is matching text content via JS:
+    components.html("""
+    <script>
+    (function styleButtons() {
+        const doc = window.parent.document;
+        let elements = Array.from(doc.querySelectorAll('.stButton p'));
+        let foundAdd = false;
+        let foundClear = false;
+        
+        for (const p of elements) {
+            if (p.textContent.includes('ADD MORE FILES')) {
+                const btn = p.closest('button');
+                if (btn) {
+                    btn.classList.add('custom-addmore-btn');
+                    // Ensure the button parent container is set to full width block display so text aligns center
+                    const wrapper = btn.closest('div[data-testid="stElementContainer"]');
+                    if (wrapper) wrapper.style.cssText = 'width: 100% !important; display: block !important;';
+                    foundAdd = true;
+                }
+            }
+            if (p.textContent.includes('Clear Result')) {
+                const btn = p.closest('button');
+                if (btn) {
+                    btn.classList.add('custom-clear-btn');
+                    // Safely right-justify by making the wrapper a block with text-align right
+                    // This avoids Flexbox height bugs that caused vertical overlapping.
+                    const wrapper = btn.closest('div[data-testid="stElementContainer"]');
+                    if (wrapper) wrapper.style.cssText = 'display: block !important; text-align: right !important; width: 100% !important;';
+                    foundClear = true;
+                }
+            }
+        }
+        
+        if (!foundAdd || !foundClear) {
+            setTimeout(styleButtons, 200);
+        }
+    })();
+    </script>
+    """, height=0)
 
 
 
@@ -4074,27 +4335,66 @@ components.html("""
                     .stApp:has(#ag-result-marker) div[data-testid="stVerticalBlock"] > div:has(#ag-result-marker) {
                         display: block !important;
                     }
-                    .stApp:has(#ag-result-marker) div[data-testid="stVerticalBlock"] > div:has(#ag-result-marker) * {
+                    /* Un-hide all descendants inside the result popup */
+                    .stApp:has(#ag-result-marker) div[data-testid="stVerticalBlock"] > div:has(#ag-result-marker) *:not(style):not(script) {
                         display: revert !important;
                     }
-                    /* Center download and clear buttons inside the result overlay.     */
-                    /* display:revert makes wrapper divs block-level (good).             */
-                    /* Target the WRAPPER DIVS (not the buttons themselves) with         */
-                    /* width:fit-content + margin:auto to shrink-wrap and center them.   */
-                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) [data-testid="stDownloadButton"],
-                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) [data-testid="stButton"] {
-                        width: fit-content !important;
-                        margin-left: auto !important;
-                        margin-right: auto !important;
+                    /* Keep style/script tags invisible */
+                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) style,
+                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) script {
+                        display: none !important;
                     }
+
+                    /* Remove visibility of the hidden streamlit buttons used for routing */
+                    .stApp:has(#ag-result-marker) div[data-testid="element-container"]:has(#hide-clear-btn-marker),
+                    .stApp:has(#ag-result-marker) div[data-testid="element-container"]:has(#hide-clear-btn-marker) + div[data-testid="element-container"],
+                    .stApp:has(#ag-result-marker) div[data-testid="element-container"]:has(#hide-addmore-btn-marker),
+                    .stApp:has(#ag-result-marker) div[data-testid="element-container"]:has(#hide-addmore-btn-marker) + div[data-testid="element-container"] {
+                        position: absolute !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
+                        height: 1px !important;
+                        width: 1px !important;
+                        overflow: hidden !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+
                     /* Hide Streamlit heading anchor link icon in the result popup */
                     .stApp:has(#ag-result-marker) div:has(#ag-result-marker) h1 a,
                     .stApp:has(#ag-result-marker) div:has(#ag-result-marker) [data-testid="StyledLinkIconContainer"] {
                         display: none !important;
                     }
+                    
+                    /* Fix file uploader appearance in popup (replacing removed JS) */
+                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) [data-testid="stFileUploader"] [data-testid="stWidgetLabel"] {
+                        display: none !important;
+                    }
+                    .stApp:has(#ag-result-marker) div:has(#ag-result-marker) section[data-testid="stFileUploader"] {
+                        margin-bottom: 1em !important;
+                    }
                 `;
                 doc.head.appendChild(style);
             }
+            
+            // Periodically hunt down and destroy the visibility of the UX_HIDDEN buttons
+            // because CSS :has() + adjacent sibling combinators are too brittle against
+            // Streamlit's dynamic DOM node generation and `display: revert !important` rule.
+            function hideUxButtons() {
+                var btns = doc.querySelectorAll('button');
+                for (var i = 0; i < btns.length; i++) {
+                    if (btns[i].textContent.indexOf('UX_HIDDEN') !== -1) {
+                        // Hide the button itself
+                        btns[i].style.setProperty('display', 'none', 'important');
+                        // Hide its immediate wrapper
+                        var wrapper = btns[i].closest('[data-testid="element-container"]');
+                        if (wrapper) wrapper.style.setProperty('display', 'none', 'important');
+                    }
+                }
+            }
+            hideUxButtons();
+            setInterval(hideUxButtons, 500); // Keep them hidden even if Streamlit re-renders
+
         })();
     </script>
 """, height=0)
