@@ -2179,7 +2179,7 @@ for cat in categories:
     if not cat_skills:
         continue
         
-    with st.sidebar.expander(f"📁 {cat}", expanded=bool(selected_skill and selected_skill.get("category") == cat)):  # type: ignore[union-attr]
+    with st.sidebar.expander(f"📁 {cat}", expanded=False):
         for s in cat_skills:
             # Highlight selected skill
             is_selected = st.session_state.selected_skill_id == s["id"]
