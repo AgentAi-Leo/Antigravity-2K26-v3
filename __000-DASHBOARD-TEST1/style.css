@@ -478,3 +478,8 @@ div[data-testid="stToggle"] [data-baseweb="checkbox"][aria-checked="true"],
 .hidden-data-expander {
     display: none !important;
 }
+
+/* 21. Hide Streamlit Header & Deploy Button */
+header[data-testid="stHeader"] {
+    display: none !important;
+}
