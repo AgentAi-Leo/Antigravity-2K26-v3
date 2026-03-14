@@ -1602,7 +1602,18 @@ def check_password():
     .login-page [data-testid="stForm"] [data-testid="stMarkdown"] {
         text-align: left;
     }
-    /* Center spinner/status messages on login page */
+    /* Center spinner/status messages on login page instantly to prevent flashes */
+    .login-page [data-testid="stElementContainer"]:has([data-testid="stSpinner"]),
+    .login-page .element-container:has([data-testid="stSpinner"]),
+    .login-page [data-testid="stElementContainer"]:has(.stSpinner),
+    .login-page .element-container:has(.stSpinner),
+    .login-page [data-testid="stElementContainer"]:has([data-testid="stStatusWidget"]),
+    .login-page .element-container:has([data-testid="stStatusWidget"]) {
+        display: flex !important;
+        justify-content: center !important;
+        width: 100% !important;
+        margin-top: 2.5rem !important;
+    }
     .login-page [data-testid="stSpinner"],
     .login-page [data-testid="stStatusWidget"],
     .login-page .stSpinner {
@@ -1662,6 +1673,48 @@ def check_password():
             unlock_clicked = st.form_submit_button("Unlock", use_container_width=True)
     
     if unlock_clicked:
+        st.components.v1.html("""
+        <script>
+        (function forceCenterSpinners() {
+            try {
+                const doc = window.parent.document;
+                const terms = ['Verifying via Google', 'Loading API keys'];
+                const leaves = doc.querySelectorAll('div, span, p');
+                
+                leaves.forEach(el => {
+                    const txt = el.textContent || '';
+                    if (el.children.length === 0 && terms.some(t => txt.includes(t))) {
+                        // Found the text leaf node
+                        const container = el.closest('.element-container') || el.closest('[data-testid="stElementContainer"]');
+                        if (container) {
+                            // Center the outer Streamlit container
+                            container.style.setProperty('display', 'flex', 'important');
+                            container.style.setProperty('justify-content', 'center', 'important');
+                            container.style.setProperty('width', '100%', 'important');
+                            container.style.setProperty('margin-top', '2.5rem', 'important');
+                            
+                            // Walk UP from leaf to container to force flex centering on all wrappers
+                            let curr = el;
+                            while (curr && curr !== container) {
+                                curr.style.setProperty('display', 'flex', 'important');
+                                curr.style.setProperty('flex-direction', 'row', 'important');
+                                curr.style.setProperty('justify-content', 'center', 'important');
+                                curr.style.setProperty('align-items', 'center', 'important');
+                                curr.style.setProperty('text-align', 'center', 'important');
+                                // Reset widths so they shrink-wrap and can be centered by parent
+                                curr.style.setProperty('width', 'fit-content', 'important'); 
+                                curr.style.setProperty('margin', '0 auto', 'important');
+                                curr = curr.parentElement;
+                            }
+                        }
+                    }
+                });
+            } catch (e) {}
+            // Run frequently to catch Streamlit's fast DOM updates
+            setTimeout(forceCenterSpinners, 20); 
+        })();
+        </script>
+        """, height=0)
         with st.spinner("Verifying via Google Cloud Secret Manager..."):
             try:
                 real_secret = _fetch_gcp_secret("DEV-TEST1-LOGIN")
@@ -1697,7 +1750,7 @@ def check_password():
     st.markdown("</div>", unsafe_allow_html=True)
     return False
 
-if False and not check_password():
+if not check_password():
     st.stop()  # Do not render the rest of the app until authenticated
 
 # --- Stale processing overlay cleanup ---
